@@ -53,18 +53,18 @@ export default function HomePageClient({ categories, products }: Props) {
       rating: 5,
     },
     {
-      quote_en: '"I bought Bhimseni camphor for pooja. Unlike others, it left zero residue. My pooja room was filled with a wonderful fragrance!"',
-      quote_te: '"నేను పూజకు భీమసేని కర్పూరం కొన్నాను. వెలిగించినప్పుడు మసి రాలేదు. పూజా గది అంతా అద్భుతమైన సువాసనతో నిండిపోయింది."',
-      name_en: 'Lakshmi Devi, Hyderabad',
-      name_te: 'లక్ష్మి దేవి, హైదరాబాద్',
-      initial: 'L',
+      quote_en: '"The cold pressed almond (badam) oil is extremely premium. My skin and hair have never felt better, and it has a wonderful natural fragrance."',
+      quote_te: '"చెక్క గానుగ ద్వారా తీసిన బాదం నూనె చాలా అద్భుతంగా ఉంది. జుట్టు మరియు చర్మ సంరక్షణకు ఇది చాలా మేలు చేస్తుంది, మరియు సహజ సిద్ధమైన సువాసనతో ఉంది."',
+      name_en: 'Venkatesh, Vijayawada',
+      name_te: 'వెంకటేష్, విజయవాడ',
+      initial: 'V',
       rating: 5,
     },
     {
-      quote_en: '"Ordering via WhatsApp was easy. The cow ghee quality is excellent — my children love it! Delivery arrived within two days."',
-      quote_te: '"వాట్సాప్ ద్వారా ఆర్డర్ చేయడం సులభమైంది. ఆవు నెయ్యి నాణ్యత చాలా బాగుంది, పిల్లలు ఇష్టంగా తింటున్నారు."',
-      name_en: 'Sai Krishna, Vijayawada',
-      name_te: 'సాయి కృష్ణ, విజయవాడ',
+      quote_en: '"I regularly order their wooden pressed groundnut and mustard oils. The taste of our daily curries has improved so much. Highly recommended!"',
+      quote_te: '"నేను ప్రతి నెలా వేరుశనగ మరియు ఆవ నూనెలు ఇక్కడే కొంటాను. మా ఇంట్లో వండే కూరలు చాలా రుచికరంగా ఉంటున్నాయి. అందరూ తప్పక వాడవచ్చు!"',
+      name_en: 'Srinivas, Rajahmundry',
+      name_te: 'శ్రీనివాస్, రాజమండ్రి',
       initial: 'S',
       rating: 5,
     },
@@ -107,14 +107,14 @@ export default function HomePageClient({ categories, products }: Props) {
             
             <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4 pt-2">
               <Link
-                href="/products?category=oils"
+                href="/products?category=cold-pressed"
                 className="bg-white hover:bg-amber-50 text-amber-900 font-black px-8 py-3.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center space-x-2 text-sm group"
               >
                 <span>{t('hero_btn_oils')}</span>
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link
-                href="/products?category=pooja-items"
+                href="/products?category=refined-filtered"
                 className="bg-white/10 hover:bg-white/20 text-white border-2 border-white/60 hover:border-white font-bold px-8 py-3.5 rounded-full transition-all duration-300 text-sm backdrop-blur-sm"
               >
                 {t('hero_btn_pooja')}
@@ -337,9 +337,9 @@ function CategoryCard({ cat, language }: { cat: Category; language: string }) {
   const [imgError, setImgError] = useState(false);
   
   // Use local images to ensure they load properly and don't rely on external URLs
-  const localImage = cat.slug === 'oils'
-    ? '/images/categories/category_oils.png'
-    : '/images/categories/category_pooja.png';
+  const localImage = cat.slug === 'cold-pressed'
+    ? '/images/categories/cold_pressed.png'
+    : '/images/categories/refined_filtered.png';
 
   // If DB image is unsplash or missing, use local image
   const isExternalOrBroken = !cat.image || cat.image.includes('unsplash') || imgError;

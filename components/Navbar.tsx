@@ -75,10 +75,10 @@ export default function Navbar() {
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex flex-col group">
               <span className="text-xl sm:text-2xl font-black tracking-tight text-amber-900 leading-tight font-heading group-hover:text-amber-700 transition-colors">
-                {language === 'te' ? 'నూనె & పూజా బజార్' : 'Oil & Pooja Bazaar'}
+                {language === 'te' ? 'సహజ చెక్క గానుగ నూనెలు' : 'Natural Chekka Ganuga Oils'}
               </span>
               <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-amber-600/80 uppercase">
-                NUNE & POOJA BAZAAR
+                NATURAL CHEKKA GANUGA OILS
               </span>
             </Link>
           </div>
@@ -103,8 +103,8 @@ export default function Navbar() {
           {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center space-x-1">
             <Link href="/" className={navLinkClass('/')}>{t('nav_home')}</Link>
-            <Link href="/products?category=oils" className={navLinkClass('/products?category=oils')}>{t('nav_oils')}</Link>
-            <Link href="/products?category=pooja-items" className={navLinkClass('/products?category=pooja-items')}>{t('nav_pooja')}</Link>
+            <Link href="/products?category=cold-pressed" className={navLinkClass('/products?category=cold-pressed')}>{t('nav_oils')}</Link>
+            <Link href="/products?category=refined-filtered" className={navLinkClass('/products?category=refined-filtered')}>{t('nav_pooja')}</Link>
             <Link href="/track-order" className={navLinkClass('/track-order')}>{t('nav_track')}</Link>
           </nav>
 
@@ -291,8 +291,8 @@ export default function Navbar() {
           <div className="flex flex-col space-y-1 pt-1">
             {[
               { href: '/', label: t('nav_home_mobile') },
-              { href: '/products?category=oils', label: t('nav_oils_mobile') },
-              { href: '/products?category=pooja-items', label: t('nav_pooja_mobile') },
+              { href: '/products?category=cold-pressed', label: t('nav_oils_mobile') },
+              { href: '/products?category=refined-filtered', label: t('nav_pooja_mobile') },
               { href: '/track-order', label: t('nav_track_mobile') },
             ].map(({ href, label }) => (
               <Link

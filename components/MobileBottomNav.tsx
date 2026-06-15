@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Home, Droplet, Sparkles, ShoppingCart, User } from 'lucide-react';
+import { Home, Droplet, Droplets, ShoppingCart, User } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -21,8 +21,8 @@ export default function MobileBottomNav() {
   // Determine active states
   const category = searchParams.get('category');
   const isHome = pathname === '/';
-  const isOils = pathname === '/products' && category === 'oils';
-  const isPooja = pathname === '/products' && category === 'pooja-items';
+  const isOils = pathname === '/products' && category === 'cold-pressed';
+  const isPooja = pathname === '/products' && category === 'refined-filtered';
   const isCart = pathname === '/cart';
   const isAccount = pathname === '/account' || pathname === '/login';
 
@@ -35,15 +35,15 @@ export default function MobileBottomNav() {
     },
     {
       label: t('nav_oils_mobile'),
-      href: '/products?category=oils',
+      href: '/products?category=cold-pressed',
       active: isOils,
       icon: <Droplet size={20} className={isOils ? 'stroke-[2.5px]' : 'stroke-[1.8px]'} />,
     },
     {
       label: t('nav_pooja_mobile'),
-      href: '/products?category=pooja-items',
+      href: '/products?category=refined-filtered',
       active: isPooja,
-      icon: <Sparkles size={20} className={isPooja ? 'stroke-[2.5px]' : 'stroke-[1.8px]'} />,
+      icon: <Droplets size={20} className={isPooja ? 'stroke-[2.5px]' : 'stroke-[1.8px]'} />,
     },
     {
       label: t('cart_title').split(' ')[0],

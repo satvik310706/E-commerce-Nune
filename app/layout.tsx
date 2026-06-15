@@ -5,10 +5,10 @@ import { Suspense } from 'react';
 import MobileBottomNav from '@/components/MobileBottomNav';
 
 export const metadata: Metadata = {
-  title: 'Oil & Pooja Bazaar | Nune & Pooja Bazaar - Pure Edible Oils & Pooja Items',
-  description: 'Buy pure cold pressed sesame, groundnut, coconut oils and organic camphor, incense sticks online. Traditional wood-pressed oils and premium pooja items delivered across Andhra Pradesh & Telangana.',
-  keywords: 'Nuvvula Nune, Sesame Oil, Groundnut Oil, Pooja items, Camphor, Agarbatti, Telugu oil seller, Hyderabad pooja items, cold pressed oil',
-  authors: [{ name: 'Nune Bazaar Team' }],
+  title: 'Natural Chekka Ganuga Oils | 100% Pure Traditional Wood Pressed Cooking Oils',
+  description: 'Buy 100% pure cold pressed groundnut, coconut, sesame, almond (badam), and mustard oils online. Authentic wood-pressed edible oils delivered across AP & TS.',
+  keywords: 'Chekka Ganuga Oils, Wood Pressed Oils, Groundnut Oil, Sesame Oil, Coconut Oil, Almond Oil, Badam Nune, Mustard Oil, Hyderabad edible oils, pure cooking oil AP TS',
+  authors: [{ name: 'Natural Chekka Ganuga Oils Team' }],
   icons: {
     icon: '/favicon.ico',
   },

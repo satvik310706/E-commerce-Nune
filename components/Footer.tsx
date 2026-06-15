@@ -16,16 +16,16 @@ export default function Footer() {
         {/* Brand Header */}
         <div className="space-y-2">
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight font-heading gold-text-gradient drop-shadow-sm">
-            {language === 'te' ? 'నూనె & పూజా బజార్' : 'Oil & Pooja Bazaar'}
+            {language === 'te' ? 'సహజ చెక్క గానుగ నూనెలు' : 'Natural Chekka Ganuga Oils'}
           </h2>
           <p className="text-[10px] font-black tracking-[0.25em] text-amber-500 uppercase">
-            NUNE & POOJA BAZAAR
+            NATURAL CHEKKA GANUGA OILS
           </p>
           <div className="h-[1px] w-12 bg-gradient-to-r from-transparent via-amber-400 to-transparent mx-auto mt-2" />
           <p className="max-w-md text-xs text-amber-200/50 leading-relaxed font-semibold pt-1.5">
             {language === 'te' 
-              ? 'సాంప్రదాయ పద్ధతిలో తయారుచేసిన స్వచ్ఛమైన వంట నూనెలు మరియు దివ్యమైన పూజా సాగ్రిల వేదిక.' 
-              : 'Your trusted destination for traditionally crafted pure oils and sacred premium pooja items.'}
+              ? 'సాంప్రదాయ పద్ధతిలో తయారుచేసిన స్వచ్ఛమైన మరియు రసాయన రహిత చెక్క గానుగ వంట నూనెలు.' 
+              : 'Your trusted destination for traditionally crafted pure, chemical-free cold pressed cooking oils.'}
           </p>
         </div>
 
@@ -59,8 +59,8 @@ export default function Footer() {
         {/* Inline Navigation Links */}
         <div className="flex flex-wrap justify-center items-center gap-x-8 gap-y-3 text-xs font-bold text-amber-200/60 border-y border-amber-950/40 py-5 w-full">
           <Link href="/" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_home')}</Link>
-          <Link href="/products?category=oils" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_oils')}</Link>
-          <Link href="/products?category=pooja-items" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_pooja')}</Link>
+          <Link href="/products?category=cold-pressed" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_oils')}</Link>
+          <Link href="/products?category=refined-filtered" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_pooja')}</Link>
           <Link href="/track-order" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_track')}</Link>
           <Link href="/policy?tab=shipping" className="hover:text-amber-400 transition-colors relative py-1">{language === 'te' ? 'షిప్పింగ్ పాలసీ' : 'Shipping'}</Link>
           <Link href="/policy?tab=returns" className="hover:text-amber-400 transition-colors relative py-1">{language === 'te' ? 'రిటర్న్స్ & రీఫండ్' : 'Returns & Refund'}</Link>
@@ -70,7 +70,7 @@ export default function Footer() {
         {/* Secure & Copyright Bottom */}
         <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-amber-600/80 pt-2">
           <p className="font-semibold order-2 sm:order-1">
-            © {year} {language === 'te' ? 'నూనె & పూజా బజార్' : 'Oil & Pooja Bazaar'}. {language === 'te' ? 'అన్ని హక్కులు రక్షించబడ్డాయి.' : 'All Rights Reserved.'}
+            © {year} {language === 'te' ? 'సహజ చెక్క గానుగ నూనెలు' : 'Natural Chekka Ganuga Oils'}. {language === 'te' ? 'అన్ని హక్కులు రక్షించబడ్డాయి.' : 'All Rights Reserved.'}
           </p>
           
           <div className="flex items-center space-x-2 bg-amber-950/70 px-4 py-2 rounded-full border border-amber-900/30 order-1 sm:order-2 shadow-inner">
