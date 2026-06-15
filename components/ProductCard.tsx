@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ShoppingCart, Check, Percent, Package } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useLanguage } from '@/context/LanguageContext';
@@ -85,12 +86,13 @@ export default function ProductCard({ product }: ProductCardProps) {
 
       {/* Image */}
       <Link href={`/products/${product.slug}`} className="block relative w-full pt-[85%] bg-amber-50/30 overflow-hidden">
-        <img
+        <Image
           src={imageUrl}
           alt={product.name}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
           onError={() => setImgError(true)}
-          loading="lazy"
         />
       </Link>
 

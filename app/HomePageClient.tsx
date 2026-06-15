@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ProductCard from '@/components/ProductCard';
 import { Shield, Sparkles, Truck, Award, ArrowRight, MessageCircle } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
@@ -125,11 +126,14 @@ export default function HomePageClient({ categories, products }: Props) {
           <div className="lg:col-span-5 flex justify-center lg:justify-end mt-6 lg:mt-0">
             <div className="relative w-72 sm:w-88 bg-white/12 backdrop-blur-md p-4 sm:p-5 rounded-3xl border border-white/20 shadow-2xl animate-fade-in-up">
               <div className="bg-white rounded-2xl overflow-hidden shadow-lg aspect-square relative">
-                <img
+                <Image
                   src={heroImgError ? FALLBACK_IMAGE : 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=400&auto=format&fit=crop'}
                   alt="Pure Edible Oils and Pooja Items"
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 1024px) 50vw, 30vw"
+                  className="object-cover"
                   onError={() => setHeroImgError(true)}
+                  priority
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4 text-white">
@@ -350,12 +354,13 @@ function CategoryCard({ cat, language }: { cat: Category; language: string }) {
       className="group relative overflow-hidden rounded-2xl border border-amber-100 shadow-sm hover:shadow-lg transition-all duration-300 aspect-[16/9] flex items-end p-6 bg-amber-900"
     >
       <div className="absolute inset-0 bg-black/30 group-hover:bg-black/45 transition-colors duration-300 z-10" />
-      <img
+      <Image
         src={imgSrc}
         alt={catName}
-        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        fill
+        sizes="(max-width: 768px) 100vw, 50vw"
+        className="object-cover group-hover:scale-105 transition-transform duration-500"
         onError={() => setImgError(true)}
-        loading="lazy"
       />
       <div className="relative z-20 text-white space-y-1">
         <h3 className="text-lg sm:text-xl font-black font-heading leading-tight">{catName}</h3>
