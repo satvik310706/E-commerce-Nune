@@ -69,15 +69,15 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 w-full">
       {/* Main Header */}
       <div className="w-full bg-white/96 backdrop-blur-md border-b border-amber-100/80 smooth-shadow">
-        <div className="w-full px-4 sm:px-8 lg:px-12 h-16 flex items-center justify-between gap-4">
+        <div className="w-full px-3 sm:px-8 lg:px-12 h-16 flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Brand Logo */}
-          <div className="flex items-center flex-shrink-0">
-            <Link href="/" className="flex flex-col group">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-amber-900 leading-tight font-heading group-hover:text-amber-700 transition-colors">
+          <div className="flex items-center flex-shrink">
+            <Link href="/" className="flex flex-col group min-w-0">
+              <span className="text-[13px] min-[360px]:text-sm min-[400px]:text-base sm:text-xl lg:text-2xl font-black tracking-tight text-amber-900 leading-tight font-heading group-hover:text-amber-700 transition-colors truncate">
                 {language === 'te' ? 'సహజ చెక్క గానుగ నూనెలు' : 'Natural Chekka Ganuga Oils'}
               </span>
-              <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-amber-600/80 uppercase">
+              <span className="text-[7px] min-[360px]:text-[8px] min-[400px]:text-[9px] sm:text-[10px] font-bold tracking-[0.12em] sm:tracking-[0.18em] text-amber-600/80 uppercase truncate">
                 NATURAL CHEKKA GANUGA OILS
               </span>
             </Link>
