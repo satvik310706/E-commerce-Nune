@@ -1,0 +1,94 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { orderEmitter } from '@/lib/sse';
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { orderId, status } = body;
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    if (status === 'success') {
+      await prisma.$transaction(async (tx) => {
+        const currentOrder = await tx.order.findUnique({ where: { id: orderId } });
+        if (currentOrder && currentOrder.paymentStatus !== 'COMPLETED') {
+          // Update order status
+          await tx.order.update({
+            where: { id: orderId },
+            data: {
+              paymentStatus: 'COMPLETED',
+              orderStatus: 'CONFIRMED',
+            },
+          });
+
+          // Create payment record
+          const merchantTransactionId = `SIM-TXN-${order.orderId}-${Date.now()}`;
+          await tx.payment.create({
+            data: {
+              orderId,
+              merchantTransactionId,
+              amount: order.total,
+              status: 'COMPLETED',
+              providerResponse: JSON.stringify({ simulated: true, code: 'PAYMENT_SUCCESS' }),
+            },
+          });
+
+          // Deduct stock
+          for (const item of order.items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                stock: {
+                  decrement: item.quantity,
+                },
+              },
+            });
+          }
+        }
+      });
+
+      // Broadcast SSE notification
+      orderEmitter.emit('order-update', {
+        orderId: order.id,
+        status: 'CONFIRMED',
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Direct SSE event for new orders if Admin dashboard needs to refresh
+      orderEmitter.emit('new-order', {
+        ...order,
+        paymentStatus: 'COMPLETED',
+        orderStatus: 'CONFIRMED',
+        user: {
+          name: 'Demo Customer',
+          email: 'customer@demo.com',
+        },
+      });
+
+      return NextResponse.json({ success: true });
+    } else {
+      // Mark payment as FAILED
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: 'FAILED' },
+      });
+
+      return NextResponse.json({ success: true, message: 'Payment simulated as failed' });
+    }
+  } catch (err: any) {
+    console.error('Error simulating payment success:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}

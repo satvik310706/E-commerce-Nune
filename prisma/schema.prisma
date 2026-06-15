@@ -1,0 +1,164 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  phone     String?
+  role      String    @default("CUSTOMER") // "CUSTOMER" or "ADMIN"
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  addresses Address[]
+  orders    Order[]
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  latitude  Float?
+  longitude Float?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  nameTe      String
+  slug        String    @unique
+  image       String
+  description String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  nameTe      String
+  slug        String   @unique
+  description String
+  images      String   // JSON string of string[]
+  price       Float
+  mrp         Float
+  sku         String   @unique
+  stock       Int      @default(0)
+  unit        String   // "Litre", "Gram", "Kg", "Bottle", etc.
+  weight      Float    // numerical weight e.g., 1, 500, 250
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  benefits    String   // JSON string of string[]
+  ingredients String?  // JSON string
+  usage       String?  // JSON string
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Coupon {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  type          String    // "PERCENT" or "FIXED"
+  value         Float
+  minOrderValue Float     @default(0)
+  maxDiscount   Float?
+  expiresAt     DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  orderId       String      @unique // custom ID e.g., NUNE-20260614-1002
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  name          String
+  phone         String
+  line1         String
+  line2         String?
+  city          String
+  state         String
+  pincode       String
+  latitude      Float?
+  longitude     Float?
+  subtotal      Float
+  shipping      Float
+  tax           Float
+  discount      Float       @default(0)
+  total         Float
+  couponCode    String?
+  paymentMethod String      // "PHONEPE" or "COD"
+  paymentStatus String      // "PENDING", "COMPLETED", "FAILED"
+  orderStatus   String      // "PENDING", "CONFIRMED", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED"
+  notes         String?
+  items         OrderItem[]
+  payments      Payment[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  name      String
+  nameTe    String?
+  price     Float
+  quantity  Int
+  image     String
+}
+
+model Payment {
+  id                    String   @id @default(uuid())
+  orderId               String
+  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  merchantTransactionId String   @unique
+  amount                Float
+  status                String   // "PENDING", "COMPLETED", "FAILED"
+  providerResponse      String?  // JSON text
+  createdAt             DateTime @default(now())
+}
+
+model Banner {
+  id        String   @id @default(uuid())
+  image     String
+  title     String
+  subtitle  String?
+  ctaLink   String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model SiteSettings {
+  id                String  @id @default("singleton")
+  codEnabled        Boolean @default(true)
+  freeShippingAbove Float   @default(500)
+  shippingFee       Float   @default(40)
+  gstRate           Float   @default(5) // percent
+  contactPhone      String  @default("+919999999999")
+  whatsappNumber    String  @default("+919999999999")
+  businessName      String  @default("నూనె బజార్ / Nune Bazaar")
+  businessEmail     String  @default("support@nunebazaar.com")
+}

@@ -2,32 +2,249 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --font-sans: 'Inter', sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+  
+  /* Color Palette - Warm Golden Amber */
+  --primary: 33 84% 40%;
+  --primary-light: 38 95% 55%;
+  --primary-dark: 28 80% 22%;
+  
+  --background: 43 30% 97%;
+  --foreground: 20 20% 12%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 20 20% 12%;
+  
+  --border: 38 30% 88%;
+  --ring: 33 80% 45%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  font-family: var(--font-sans);
+  background-color: #fdfbf7;
+  color: #1c1009;
+  scroll-behavior: smooth;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* ─── Premium Custom Select Styling ─── */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b45309' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  padding-right: 36px !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.15);
+  border-color: #b45309 !important;
+}
+
+select option {
+  font-weight: 600;
+  background: #fff;
+  color: #1c1009;
+  padding: 8px;
+}
+
+/* Premium select wrapper */
+.select-wrapper {
+  position: relative;
+}
+
+/* ─── Glassmorphism ─── */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(161, 98, 7, 0.06);
+}
+
+/* ─── Shadows ─── */
+.smooth-shadow {
+  box-shadow: 0 4px 24px -4px rgba(161, 98, 7, 0.09), 0 1px 4px -1px rgba(161, 98, 7, 0.06);
+}
+
+.smooth-shadow-lg {
+  box-shadow: 0 12px 40px -8px rgba(161, 98, 7, 0.14), 0 2px 8px -2px rgba(161, 98, 7, 0.08);
+}
+
+/* ─── Hover Lift Card Effect ─── */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 44px -12px rgba(161, 98, 7, 0.16);
+}
+
+/* ─── Gradient utilities ─── */
+.gold-gradient {
+  background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
+}
+
+.gold-text-gradient {
+  background: linear-gradient(135deg, #f59e0b 0%, #92400e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Scrollbar hide ─── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Shimmer ─── */
+.shimmer {
+  background: linear-gradient(90deg, #fef3c7 25%, #fde68a 50%, #fef3c7 75%);
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.5s infinite;
+}
+
+@keyframes loading-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Animations ─── */
+.fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Language switcher pill */
+.lang-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lang-pill-btn {
+  padding: 3px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 999px;
+}
+
+.lang-pill-btn.active {
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+}
+
+.lang-pill-btn:not(.active) {
+  color: rgba(255,255,255,0.65);
+}
+
+/* ─── Premium input focus ring ─── */
+input:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.13);
+  border-color: #b45309 !important;
+}
+
+/* ─── Dropdown styles for admin selects ─── */
+.admin-select {
+  background: #fff;
+  border: 1.5px solid #fcd34d;
+  border-radius: 10px;
+  padding: 8px 36px 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #78350f;
+  transition: all 0.2s;
+}
+
+.admin-select:hover {
+  border-color: #b45309;
+}
+
+/* ─── Live location button ─── */
+.live-location-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #065f46, #047857);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px -2px rgba(4, 120, 87, 0.35);
+}
+
+.live-location-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -2px rgba(4, 120, 87, 0.45);
+}
+
+.live-location-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ─── Map link badge ─── */
+.map-link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 3px 10px -2px rgba(29, 78, 216, 0.35);
+}
+
+.map-link-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px -2px rgba(29, 78, 216, 0.45);
+}
+
+/* ─── Image break protection ─── */
+img {
+  max-width: 100%;
+}
+
+img[src=""], img:not([src]) {
+  display: none;
 }
