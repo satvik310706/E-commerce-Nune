@@ -1,190 +1,266 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Check, Percent, Package } from 'lucide-react';
+import { Plus, Minus, Layers, ChevronDown } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useLanguage } from '@/context/LanguageContext';
+import VariantSelectorModal from '@/components/VariantSelectorModal';
+import type { RawProduct, GroupedProduct } from '@/hooks/useGroupedProducts';
 
 interface ProductCardProps {
-  product: {
-    id: string;
-    name: string;
-    nameTe: string;
-    slug: string;
-    description: string;
-    images: string[];
-    price: number;
-    mrp: number;
-    stock: number;
-    unit: string;
-    weight: number;
-  };
+  group: GroupedProduct;
 }
 
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=300&auto=format&fit=crop';
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=400&auto=format&fit=crop';
 
-export default function ProductCard({ product }: ProductCardProps) {
-  const addItem = useCartStore((state) => state.addItem);
-  const items = useCartStore((state) => state.items);
-  const updateQuantity = useCartStore((state) => state.updateQuantity);
-  const [added, setAdded] = useState(false);
+function formatVariantLabel(product: RawProduct): string {
+  const w = product.weight;
+  const u = product.unit;
+  if (u === 'Litre' || u === 'Liter') {
+    return w >= 1 ? `${w} Litre` : `${Math.round(w * 1000)} ml`;
+  }
+  if (u === 'Gram' || u === 'g') {
+    return w >= 1000 ? `${w / 1000} Kg` : `${w} g`;
+  }
+  if (u === 'Kg' || u === 'kg') return `${w} Kg`;
+  if (u === 'ml') return w >= 1000 ? `${w / 1000} L` : `${w} ml`;
+  return `${w} ${u}`;
+}
+
+export default function ProductCard({ group }: ProductCardProps) {
+  const { representative, variants, minPrice, minMrp, groupKey } = group;
+
+  const addItem = useCartStore((s) => s.addItem);
+  const items = useCartStore((s) => s.items);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const removeItem = useCartStore((s) => s.removeItem);
+
   const [imgError, setImgError] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const { language, t } = useLanguage();
 
-  const discountPercent = Math.round(((product.mrp - product.price) / product.mrp) * 100);
-  const imageUrl = imgError ? FALLBACK_IMAGE : (product.images?.[0] || FALLBACK_IMAGE);
-  const outOfStock = product.stock <= 0;
+  const isSingleVariant = variants.length === 1;
+  const displayName = language === 'te' ? representative.nameTe : groupKey;
+  const imageUrl = imgError ? FALLBACK_IMAGE : (representative.images?.[0] || FALLBACK_IMAGE);
+  const outOfStock = representative.stock <= 0;
 
-  const displayName = language === 'te' ? product.nameTe : product.name.split('(')[0].trim();
-  const displayUnit = language === 'te'
-    ? (product.unit === 'Litre' ? t('misc_litre') : product.unit === 'Gram' ? t('misc_gram') : product.unit === 'Pack' ? t('misc_pack') : product.unit === 'Piece' ? t('misc_piece') : product.unit)
-    : product.unit;
+  // Discount based on representative (lowest price variant)
+  const discountPercent =
+    minMrp > minPrice ? Math.round(((minMrp - minPrice) / minMrp) * 100) : 0;
 
-  const cartItem = items.find((i) => i.productId === product.id);
-  const quantityInCart = cartItem ? cartItem.quantity : 0;
+  // Total qty of all variants of this group in cart
+  const totalCartQty = variants.reduce((sum, v) => {
+    const entry = items.find((i) => i.productId === v.id);
+    return sum + (entry?.quantity || 0);
+  }, 0);
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (outOfStock) return;
+  // For single-variant: direct add/qty controls
+  const singleCartEntry = isSingleVariant
+    ? items.find((i) => i.productId === representative.id)
+    : null;
+  const singleQty = singleCartEntry?.quantity || 0;
 
-    addItem({
-      productId: product.id,
-      name: product.name,
-      nameTe: product.nameTe,
-      price: product.price,
-      mrp: product.mrp,
-      quantity: 1,
-      image: product.images?.[0] || FALLBACK_IMAGE,
-      weight: product.weight,
-      unit: product.unit,
-      stock: product.stock,
-    });
+  const handleAddSingle = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (outOfStock) return;
+      addItem({
+        productId: representative.id,
+        name: representative.name,
+        nameTe: representative.nameTe,
+        price: representative.price,
+        mrp: representative.mrp,
+        quantity: 1,
+        image: representative.images?.[0] || FALLBACK_IMAGE,
+        weight: representative.weight,
+        unit: representative.unit,
+        stock: representative.stock,
+        variantLabel: formatVariantLabel(representative),
+      });
+    },
+    [addItem, outOfStock, representative]
+  );
 
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1500);
-  };
+  const handleOpenModal = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setModalOpen(true);
+    },
+    []
+  );
 
   return (
-    <div className="group bg-white rounded-2xl border border-amber-100/80 smooth-shadow overflow-hidden hover-lift flex flex-col h-full relative">
-      
-      {/* Discount Badge */}
-      {discountPercent > 0 && !outOfStock && (
-        <div className="absolute top-3 left-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full z-10 flex items-center space-x-0.5 shadow-sm">
-          <Percent size={9} />
-          <span>{discountPercent}% OFF</span>
-        </div>
-      )}
+    <>
+      {/* Card */}
+      <div className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full relative">
 
-      {/* Out of Stock */}
-      {outOfStock && (
-        <div className="absolute top-3 right-3 bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full z-10">
-          {t('products_out_of_stock')}
-        </div>
-      )}
+        {/* Out of Stock Badge */}
+        {outOfStock && (
+          <div className="absolute top-2.5 left-2.5 z-10 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+            Out of Stock
+          </div>
+        )}
 
-      {/* Image */}
-      <Link href={`/products/${product.slug}`} className="block relative w-full pt-[85%] bg-amber-50/30 overflow-hidden">
-        <Image
-          src={imageUrl}
-          alt={product.name}
-          fill
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-          onError={() => setImgError(true)}
-        />
-      </Link>
+        {/* Overlapping Add/Qty Controls */}
+        {!outOfStock && (
+          <div 
+            className="absolute top-2.5 right-2.5 z-20"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {isSingleVariant ? (
+              singleQty > 0 ? (
+                /* Single variant quantity selector pill */
+                <div className="flex items-center bg-amber-800 text-white rounded-xl h-8 px-1 shadow-md border border-amber-900 animate-fade-in">
+                  <button
+                    onClick={() =>
+                      singleQty === 1
+                        ? removeItem(representative.id)
+                        : updateQuantity(representative.id, singleQty - 1)
+                    }
+                    className="w-6 h-6 flex items-center justify-center hover:bg-amber-700 rounded-lg transition-colors"
+                    aria-label="Decrease quantity"
+                  >
+                    <Minus size={12} strokeWidth={3} />
+                  </button>
+                  <span className="px-1.5 text-xs font-black min-w-[16px] text-center select-none">
+                    {singleQty}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (singleQty < representative.stock)
+                        updateQuantity(representative.id, singleQty + 1);
+                    }}
+                    className="w-6 h-6 flex items-center justify-center hover:bg-amber-700 rounded-lg transition-colors"
+                    aria-label="Increase quantity"
+                  >
+                    <Plus size={12} strokeWidth={3} />
+                  </button>
+                </div>
+              ) : (
+                /* Single variant ADD plus button */
+                <button
+                  onClick={handleAddSingle}
+                  className="w-8 h-8 rounded-xl bg-white border-2 border-amber-800 text-amber-800 shadow-sm flex items-center justify-center hover:bg-amber-50 hover:border-amber-955 hover:text-amber-955 transition-all active:scale-95"
+                  aria-label="Add to cart"
+                >
+                  <Plus size={16} strokeWidth={3} />
+                </button>
+              )
+            ) : (
+              totalCartQty > 0 ? (
+                /* Multi-variant added badge/button that opens size modal */
+                <button
+                  onClick={handleOpenModal}
+                  className="flex items-center bg-amber-800 hover:bg-amber-700 text-white rounded-xl h-8 px-2.5 font-black text-xs shadow-md transition-colors"
+                >
+                  <span>{totalCartQty} Added</span>
+                  <Plus size={10} strokeWidth={3} className="ml-1" />
+                </button>
+              ) : (
+                /* Multi-variant ADD button */
+                <button
+                  onClick={handleOpenModal}
+                  className="w-8 h-8 rounded-xl bg-white border-2 border-amber-800 text-amber-800 shadow-sm flex items-center justify-center hover:bg-amber-50 hover:border-amber-955 hover:text-amber-955 transition-all active:scale-95"
+                  aria-label="Choose sizes"
+                >
+                  <Plus size={16} strokeWidth={3} />
+                </button>
+              )
+            )}
+          </div>
+        )}
 
-      {/* Info */}
-      <div className="p-4 flex flex-col flex-1">
-        
-        {/* Weight / Unit tag */}
-        <div className="text-[10px] font-bold text-amber-600 mb-1.5">
-          {product.weight} {displayUnit}
-        </div>
-
-        {/* Name */}
-        <Link href={`/products/${product.slug}`} className="block focus:outline-none">
-          <h3 className="text-xs sm:text-sm font-bold text-amber-950 group-hover:text-amber-800 line-clamp-2 leading-snug transition-colors">
-            {displayName}
-          </h3>
+        {/* Image Box */}
+        <Link
+          href={`/products/${representative.slug}`}
+          className="block relative w-full aspect-square bg-[#fcfaf7] border-b border-gray-100/60 overflow-hidden flex items-center justify-center p-2.5"
+        >
+          <div className="relative w-full h-full rounded-2xl overflow-hidden bg-white">
+            <Image
+              src={imageUrl}
+              alt={representative.name}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-contain p-2 group-hover:scale-105 transition-transform duration-500 ease-out"
+              onError={() => setImgError(true)}
+            />
+          </div>
         </Link>
 
-        {/* Price */}
-        <div className="flex items-baseline space-x-1.5 mt-3">
-          <span className="text-sm sm:text-base font-black text-amber-900">
-            ₹{product.price}
-          </span>
-          {product.mrp > product.price && (
-            <span className="text-[10px] sm:text-xs text-gray-400 line-through font-medium">
-              ₹{product.mrp}
-            </span>
-          )}
-        </div>
+        {/* Info Area */}
+        <div className="p-3.5 flex flex-col flex-1 bg-white">
+          
+          {/* Delivery ETA Tag */}
+          <p className="text-[10px] font-black text-amber-800/80 tracking-wider uppercase mb-1.5 flex items-center gap-0.5">
+            ⚡ {language === 'te' ? '15 నిమిషాలు' : '15 MINS'}
+          </p>
 
-        {/* Add to Cart / Quantity Selector */}
-        <div className="mt-auto pt-3">
-          {quantityInCart > 0 ? (
-            <div className="flex items-center justify-between bg-amber-50 border border-amber-250 rounded-xl overflow-hidden h-[38px] smooth-shadow">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  updateQuantity(product.id, quantityInCart - 1);
-                }}
-                className="w-10 h-full flex items-center justify-center text-amber-900 hover:bg-amber-100 hover:text-amber-950 transition-colors font-extrabold text-sm border-r border-amber-150"
-                aria-label="Decrease quantity"
+          {/* Product Name */}
+          <Link href={`/products/${representative.slug}`}>
+            <h3 className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-amber-800 line-clamp-2 leading-snug transition-colors h-8 sm:h-9">
+              {displayName}
+            </h3>
+          </Link>
+
+          {/* Weight/Size selector dropdown chip */}
+          <div className="mt-1.5">
+            {!isSingleVariant ? (
+              /* Clickable chip for multi-variant products */
+              <div 
+                onClick={handleOpenModal}
+                className="flex items-center gap-1 bg-white border border-amber-100/80 hover:border-amber-600 rounded-lg px-2.5 py-1 text-[10px] font-extrabold text-amber-900 w-fit cursor-pointer transition-colors shadow-sm"
               >
-                —
-              </button>
-              <span className="font-extrabold text-xs text-amber-950 px-2 select-none">
-                {quantityInCart}
+                <span>{formatVariantLabel(representative)}</span>
+                <ChevronDown size={11} className="text-amber-800 shrink-0" />
+              </div>
+            ) : (
+              /* Non-clickable badge for single-variant products */
+              <span className="text-[10px] font-bold text-amber-600 block py-0.5">
+                {formatVariantLabel(representative)}
               </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  updateQuantity(product.id, quantityInCart + 1);
-                }}
-                className="w-10 h-full flex items-center justify-center text-amber-900 hover:bg-amber-100 hover:text-amber-950 transition-colors font-extrabold text-sm border-l border-amber-150"
-                aria-label="Increase quantity"
-              >
-                +
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleAddToCart}
-              disabled={outOfStock}
-              id={`add-to-cart-${product.id}`}
-              className={`w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 ${
-                outOfStock
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : added
-                  ? 'bg-green-600 text-white shadow-sm scale-95'
-                  : 'bg-amber-800 hover:bg-amber-700 text-white shadow-sm hover:shadow-md'
-              }`}
-            >
-              {added ? (
-                <>
-                  <Check size={13} />
-                  <span>{t('products_added')}</span>
-                </>
-              ) : outOfStock ? (
-                <span>{t('products_no_stock')}</span>
-              ) : (
-                <>
-                  <ShoppingCart size={13} />
-                  <span>{t('products_add_cart')}</span>
-                </>
+            )}
+          </div>
+
+          {/* Discount & Price section */}
+          <div className="mt-auto pt-2.5 flex flex-col">
+            {discountPercent > 0 && !outOfStock && (
+              <span className="text-[10px] font-black text-emerald-600 tracking-tight mb-0.5">
+                {discountPercent}% OFF
+              </span>
+            )}
+            
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm sm:text-base font-black text-gray-900">
+                ₹{representative.price}
+              </span>
+              {representative.mrp > representative.price && (
+                <span className="text-[10px] text-gray-400 line-through font-medium">
+                  ₹{representative.mrp}
+                </span>
               )}
-            </button>
-          )}
+            </div>
+          </div>
+
         </div>
       </div>
-    </div>
+
+      {/* Variant Selector Modal (bottom sheet) */}
+      {!isSingleVariant && (
+        <VariantSelectorModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          groupKey={groupKey}
+          variants={variants}
+        />
+      )}
+    </>
   );
 }

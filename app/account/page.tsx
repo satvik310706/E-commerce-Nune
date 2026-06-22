@@ -6,25 +6,138 @@ import { useSession, signOut } from 'next-auth/react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useLanguage } from '@/context/LanguageContext';
-import { User, MapPin, Package, LogOut, ChevronDown, ChevronUp, Plus, Trash2, CheckCircle, ClipboardList, Info } from 'lucide-react';
+import { useCartStore } from '@/store/cartStore';
+import { 
+  User, 
+  MapPin, 
+  Package, 
+  LogOut, 
+  Plus, 
+  Trash2, 
+  Info,
+} from 'lucide-react';
 import PremiumLoader from '@/components/PremiumLoader';
 import CustomSelect from '@/components/CustomSelect';
+import OrderHistorySection from '@/components/OrderHistorySection';
+
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
 
 function AccountContent() {
   const router = useRouter();
   const { t, language } = useLanguage();
   const searchParams = useSearchParams();
-  const { data: session, status: authStatus } = useSession();
+  const { data: session, status: authStatus, update: updateSession } = useSession();
 
   // Navigation tab from URL or default
-  const defaultTab = searchParams.get('tab') || 'orders';
+  const defaultTab = searchParams.get('tab') || 'profile';
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
+
+  // Profile edit states
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileRole, setProfileRole] = useState('CUSTOMER');
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
+  const [profileErrorMsg, setProfileErrorMsg] = useState('');
+
+  // Fetch profile details
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+    setLoadingProfile(true);
+    fetch('/api/profile')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch profile');
+        return res.json();
+      })
+      .then((data) => {
+        setProfileName(data.name || '');
+        setProfileEmail(data.email || '');
+        setProfilePhone(data.phone || '');
+        setProfileRole(data.role || 'CUSTOMER');
+        setLoadingProfile(false);
+      })
+      .catch((err) => {
+        console.error('Error loading profile:', err);
+        // Fallback to session values
+        if (session?.user) {
+          setProfileName(session.user.name || '');
+          setProfileEmail(session.user.email || '');
+          setProfilePhone(session.user.phone || '');
+          setProfileRole(session.user.role || 'CUSTOMER');
+        }
+        setLoadingProfile(false);
+      });
+  }, [authStatus, session]);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileErrorMsg('');
+    setProfileSuccessMsg('');
+    setUpdatingProfile(true);
+
+    if (!profileName.trim() || !profileEmail.trim()) {
+      setProfileErrorMsg(language === 'te' ? 'దయచేసి పేరు మరియు ఈమెయిల్ నింపండి.' : 'Name and email are required.');
+      setUpdatingProfile(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profileName,
+          email: profileEmail,
+          phone: profilePhone,
+        }),
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        if (updateSession) {
+          await updateSession({
+            name: updatedUser.name,
+            email: updatedUser.email,
+            phone: updatedUser.phone,
+          });
+        }
+        setProfileSuccessMsg(
+          language === 'te'
+            ? 'ప్రొఫైల్ వివరాలు విజయవంతంగా నవీకరించబడ్డాయి!'
+            : 'Profile details updated successfully!'
+        );
+        showToast(
+          language === 'te'
+            ? 'ప్రొఫైల్ నవీకరించబడింది!'
+            : 'Profile updated successfully!',
+          'success'
+        );
+      } else {
+        const err = await res.json();
+        setProfileErrorMsg(err.error || (language === 'te' ? 'నవీకరించడం విఫలమైంది.' : 'Update failed.'));
+      }
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      setProfileErrorMsg(language === 'te' ? 'కనెక్షన్ లోపం.' : 'Connection error.');
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
 
   // Data states
   const [orders, setOrders] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
+
+  // Toast notifications state
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   // Address form states
   const [showForm, setShowForm] = useState(false);
@@ -45,8 +158,13 @@ function AccountContent() {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [locationStatus, setLocationStatus] = useState('');
 
-  // Expandable order items state
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = Math.random().toString();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3500);
+  };
 
   // Redirect if unauthenticated or admin
   useEffect(() => {
@@ -77,6 +195,10 @@ function AccountContent() {
       .catch((err) => {
         console.error('Error fetching user orders:', err);
         setLoadingOrders(false);
+        showToast(
+          language === 'te' ? 'ఆర్డర్‌లను లోడ్ చేయడంలో విఫలమైంది.' : 'Failed to load orders.',
+          'error'
+        );
       });
   }, [authStatus]);
 
@@ -131,13 +253,11 @@ function AccountContent() {
         }));
         
         try {
-          // Attempt reverse geocoding with OpenStreetMap Nominatim
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=en`);
           if (res.ok) {
             const data = await res.json();
             const addr = data.address || {};
             
-            // Auto fill fields if found
             const line1Val = addr.road || addr.suburb || addr.neighbourhood || '';
             const line2Val = addr.suburb || addr.county || addr.state_district || '';
             const cityVal = addr.city || addr.town || addr.village || addr.city_district || '';
@@ -258,11 +378,6 @@ function AccountContent() {
     }
   };
 
-  // Expand / collapse order items card
-  const toggleOrderExpand = (orderId: string) => {
-    setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
-  };
-
   if (authStatus === 'loading') {
     return <PremiumLoader fullScreen={true} text={t('account_loading')} />;
   }
@@ -270,7 +385,7 @@ function AccountContent() {
   if (!session) return null;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 relative">
       
       {/* Account Greeting Header */}
       <div className="bg-gradient-to-r from-amber-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 smooth-shadow mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -298,7 +413,7 @@ function AccountContent() {
           <button
             onClick={() => setActiveTab('orders')}
             className={`w-full text-left text-xs font-bold py-3 px-4 rounded-2xl flex items-center space-x-2.5 transition-colors ${
-              activeTab === 'orders' ? 'bg-amber-100 text-amber-900 font-extrabold' : 'text-amber-850 hover:bg-amber-50'
+              activeTab === 'orders' ? 'bg-amber-100 text-amber-900 font-extrabold' : 'text-amber-900 hover:bg-amber-50'
             }`}
           >
             <Package size={16} />
@@ -308,7 +423,7 @@ function AccountContent() {
           <button
             onClick={() => setActiveTab('addresses')}
             className={`w-full text-left text-xs font-bold py-3 px-4 rounded-2xl flex items-center space-x-2.5 transition-colors ${
-              activeTab === 'addresses' ? 'bg-amber-100 text-amber-900 font-extrabold' : 'text-amber-850 hover:bg-amber-50'
+              activeTab === 'addresses' ? 'bg-amber-100 text-amber-900 font-extrabold' : 'text-amber-900 hover:bg-amber-50'
             }`}
           >
             <MapPin size={16} />
@@ -318,7 +433,7 @@ function AccountContent() {
           <button
             onClick={() => setActiveTab('profile')}
             className={`w-full text-left text-xs font-bold py-3 px-4 rounded-2xl flex items-center space-x-2.5 transition-colors ${
-              activeTab === 'profile' ? 'bg-amber-100 text-amber-900 font-extrabold' : 'text-amber-850 hover:bg-amber-50'
+              activeTab === 'profile' ? 'bg-amber-100 text-amber-900 font-extrabold' : 'text-amber-900 hover:bg-amber-50'
             }`}
           >
             <User size={16} />
@@ -329,131 +444,15 @@ function AccountContent() {
         {/* Dynamic Detail Card Content */}
         <section className="lg:col-span-3">
           
-          {/* TAB 1: ORDERS */}
+          {/* TAB 1: ORDERS – new OrderHistorySection component */}
           {activeTab === 'orders' && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-amber-950 font-heading mb-4 flex items-center space-x-1.5">
-                <ClipboardList size={18} className="text-amber-700" />
-                <span>{t('account_order_history')}</span>
-              </h3>
-
-              {loadingOrders ? (
-                <div className="bg-white border border-amber-100 rounded-3xl p-12 smooth-shadow">
-                  <PremiumLoader fullScreen={false} text={t('misc_loading')} />
-                </div>
-              ) : orders.length === 0 ? (
-                <div className="bg-white border-2 border-dashed border-amber-100 rounded-3xl p-12 text-center text-xs text-gray-500 space-y-4 smooth-shadow">
-                  <p>{t('account_no_orders')}</p>
-                  <button
-                    onClick={() => router.push('/products')}
-                    className="bg-amber-800 text-white font-bold px-6 py-2.5 rounded-full text-xs shadow-sm hover:shadow"
-                  >
-                    {t('account_browse_products')}
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orders.map((ord) => {
-                    const isExpanded = expandedOrderId === ord.id;
-                    const date = new Date(ord.createdAt).toLocaleDateString('te-IN');
-                    
-                    return (
-                      <div
-                        key={ord.id}
-                        className="bg-white border border-amber-100 rounded-3xl overflow-hidden smooth-shadow"
-                      >
-                        {/* Order Header Summary Row */}
-                        <div
-                          onClick={() => toggleOrderExpand(ord.id)}
-                          className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 cursor-pointer hover:bg-amber-50/20 transition-colors"
-                        >
-                          <div className="space-y-1 text-xs">
-                            <p className="font-extrabold text-amber-950 flex items-center space-x-1.5">
-                              <span className="font-mono text-sm sm:text-base text-amber-800">{ord.orderId}</span>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
-                                ord.orderStatus === 'DELIVERED'
-                                  ? 'bg-green-100 text-green-800 border-green-200'
-                                  : ord.orderStatus === 'CANCELLED'
-                                  ? 'bg-red-50 text-red-700 border-red-200'
-                                  : 'bg-amber-50 text-amber-850 border-amber-200'
-                              }`}>
-                                {ord.orderStatus}
-                              </span>
-                            </p>
-                            <p className="text-gray-400 font-semibold">{t('admin_date')}: {date} • {t('admin_total')}: <span className="font-extrabold text-amber-950">₹{ord.total}</span></p>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/track-order?orderId=${ord.id}`);
-                              }}
-                              className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-100 text-[10px] font-extrabold px-4 py-1.5 rounded-lg shadow-sm"
-                            >
-                              {t('account_track')}
-                            </button>
-                            
-                            <div className="text-amber-800">
-                              {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Order Detailed Items Panel */}
-                        {isExpanded && (
-                          <div className="bg-amber-50/25 border-t border-amber-50 p-5 space-y-4 text-xs font-semibold animate-fade-in-up">
-                            
-                            {/* Items list */}
-                            <div className="space-y-3">
-                              <p className="text-amber-950 font-black">{t('admin_items_list')}</p>
-                              {ord.items.map((item: any) => (
-                                <div key={item.id} className="flex justify-between items-center text-amber-950 font-bold text-xs">
-                                  <div className="flex items-center space-x-2">
-                                    <img
-                                      src={item.image}
-                                      alt=""
-                                      className="w-8 h-8 rounded-lg object-cover border border-amber-50"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=100&auto=format&fit=crop';
-                                      }}
-                                    />
-                                    <span>{item.nameTe} ({item.quantity} x ₹{item.price})</span>
-                                  </div>
-                                  <span>₹{item.price * item.quantity}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Address details */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-amber-50 pt-3">
-                              <div>
-                                <p className="text-gray-400 font-bold">{t('admin_delivery_address')}</p>
-                                <div className="text-amber-950 pl-1 mt-1 font-semibold leading-relaxed">
-                                  <p className="font-extrabold">{ord.name}</p>
-                                  <p>{ord.line1}</p>
-                                  {ord.line2 && <p>{ord.line2}</p>}
-                                  <p>{ord.city}, {ord.state} - {ord.pincode}</p>
-                                  <p>{t('checkout_phone')}: {ord.phone}</p>
-                                </div>
-                              </div>
-
-                              <div className="space-y-1">
-                                <p className="text-gray-400 font-bold">{t('account_payment_details')}</p>
-                                <p className="pl-1 text-amber-950">{t('account_payment_method')}: <span className="font-bold">{ord.paymentMethod === 'COD' ? 'Cash on Delivery (COD)' : 'PhonePe Online'}</span></p>
-                                <p className="pl-1 text-amber-950">{t('account_payment_status')}: <span className="font-bold">{ord.paymentStatus}</span></p>
-                                {ord.notes && <p className="pl-1 text-gray-500 font-medium italic mt-2">{language === 'te' ? 'గమనిక:' : 'Note:'} &quot;{ord.notes}&quot;</p>}
-                              </div>
-                            </div>
-
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <OrderHistorySection
+              orders={orders}
+              loadingOrders={loadingOrders}
+              language={language}
+              t={t}
+              onOrdersChange={setOrders}
+            />
           )}
 
           {/* TAB 2: ADDRESSES */}
@@ -489,7 +488,7 @@ function AccountContent() {
                       <span>{fetchingLocation ? t('checkout_fetching_location') : t('checkout_live_location')}</span>
                     </button>
                     {locationStatus && (
-                      <p className="text-[10px] font-bold text-center mt-1.5 text-amber-850">
+                      <p className="text-[10px] font-bold text-center mt-1.5 text-amber-900">
                         {locationStatus}
                       </p>
                     )}
@@ -586,7 +585,7 @@ function AccountContent() {
                       name="isDefault"
                       checked={formData.isDefault}
                       onChange={handleInputChange}
-                      className="accent-amber-850"
+                      className="accent-amber-800"
                     />
                     <label htmlFor="isDefault" className="text-[10px] font-bold text-amber-900 cursor-pointer">
                       {t('checkout_default')}
@@ -617,6 +616,7 @@ function AccountContent() {
                   </div>
                 </form>
               )}
+              
               {/* Saved Addresses list */}
               {loadingAddresses ? (
                 <div className="bg-white border border-amber-100 rounded-3xl p-12 smooth-shadow">
@@ -633,7 +633,7 @@ function AccountContent() {
                       key={addr.id}
                       className="bg-white border border-amber-100 rounded-3xl p-5 smooth-shadow flex flex-col justify-between"
                     >
-                      <div className="space-y-1.5 text-xs font-medium text-gray-650 leading-relaxed">
+                      <div className="space-y-1.5 text-xs font-medium text-gray-600 leading-relaxed">
                         <div className="flex justify-between items-center border-b border-amber-50 pb-2">
                           <span className="font-extrabold text-amber-950 text-sm">{addr.name}</span>
                           <span className="text-gray-400 font-bold">{addr.phone}</span>
@@ -675,34 +675,115 @@ function AccountContent() {
           {/* TAB 3: PROFILE */}
           {activeTab === 'profile' && (
             <div className="bg-white border border-amber-100 rounded-3xl p-6 sm:p-8 smooth-shadow space-y-6">
-              <h3 className="text-lg font-bold text-amber-950 font-heading border-b border-amber-50 pb-3 flex items-center space-x-1.5">
-                <Info size={18} className="text-amber-700" />
+              <h3 className="text-lg font-bold text-amber-950 font-heading border-b border-amber-50 pb-3 flex items-center space-x-2">
+                <div className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-50 border border-amber-200 text-amber-900 shrink-0">
+                  <Info size={15} />
+                </div>
                 <span>{t('account_profile_details')}</span>
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-xs font-semibold text-amber-950">
-                <div className="space-y-1">
-                  <span className="text-gray-400 font-bold block">{t('account_full_name')}</span>
-                  <p className="bg-amber-50/30 p-2.5 rounded-xl border border-amber-100">{session.user.name}</p>
+              {loadingProfile ? (
+                <div className="py-6 flex justify-center">
+                  <PremiumLoader fullScreen={false} text={language === 'te' ? 'ప్రొఫైల్ వివరాలు లోడ్ అవుతున్నాయి...' : 'Loading profile details...'} />
                 </div>
-                <div className="space-y-1">
-                  <span className="text-gray-400 font-bold block">{t('account_email')}</span>
-                  <p className="bg-amber-50/30 p-2.5 rounded-xl border border-amber-100">{session.user.email}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-gray-400 font-bold block">{t('account_phone')}</span>
-                  <p className="bg-amber-50/30 p-2.5 rounded-xl border border-amber-100">{session.user.phone || (language === 'te' ? 'అందుబాటులో లేదు' : 'Not Available')}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-gray-400 font-bold block">{t('account_account_type')}</span>
-                  <p className="bg-amber-50/30 p-2.5 rounded-xl border border-amber-100 uppercase tracking-wider">{session.user.role}</p>
-                </div>
-              </div>
+              ) : (
+                <form onSubmit={handleUpdateProfile} className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 text-xs font-semibold text-amber-950">
+                    {/* Full Name */}
+                    <div className="space-y-2">
+                      <label className="text-gray-500 font-bold block">{language === 'te' ? 'పూర్తి పేరు:' : 'Full Name:'}</label>
+                      <input
+                        type="text"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        className="w-full bg-white border-2 border-[#8f4412] rounded-2xl py-3 px-4 font-bold text-gray-900 focus:outline-none focus:ring-4 focus:ring-[#8f4412]/10 transition-all text-xs"
+                      />
+                    </div>
+
+                    {/* Email Address */}
+                    <div className="space-y-2">
+                      <label className="text-gray-500 font-bold block">{language === 'te' ? 'ఈమెయిల్ చిరునామా:' : 'Email Address:'}</label>
+                      <input
+                        type="email"
+                        value={profileEmail}
+                        onChange={(e) => setProfileEmail(e.target.value)}
+                        className="w-full bg-white border-2 border-[#8f4412] rounded-2xl py-3 px-4 font-bold text-gray-900 focus:outline-none focus:ring-4 focus:ring-[#8f4412]/10 transition-all text-xs"
+                      />
+                    </div>
+
+                    {/* Mobile Phone */}
+                    <div className="space-y-2">
+                      <label className="text-gray-500 font-bold block">{language === 'te' ? 'మొబైల్ ఫోన్:' : 'Mobile Phone:'}</label>
+                      <input
+                        type="text"
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                        placeholder="e.g. 9999988888"
+                        className="w-full bg-white border-2 border-[#8f4412] rounded-2xl py-3 px-4 font-bold text-gray-900 focus:outline-none focus:ring-4 focus:ring-[#8f4412]/10 transition-all text-xs"
+                      />
+                    </div>
+
+                    {/* Account Type */}
+                    <div className="space-y-2">
+                      <label className="text-gray-500 font-bold block">{language === 'te' ? 'ఖాతా రకం:' : 'Account Type:'}</label>
+                      <input
+                        type="text"
+                        value={profileRole}
+                        readOnly
+                        disabled
+                        className="w-full bg-[#fdfbf7]/60 border border-[#8f4412]/40 rounded-2xl py-3 px-4 font-bold text-gray-900/60 cursor-not-allowed text-xs uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  {profileSuccessMsg && (
+                    <p className="text-xs font-bold text-green-600 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+                      {profileSuccessMsg}
+                    </p>
+                  )}
+
+                  {profileErrorMsg && (
+                    <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+                      {profileErrorMsg}
+                    </p>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={updatingProfile}
+                      className="bg-amber-800 hover:bg-amber-700 active:scale-95 text-white font-black px-8 py-3 rounded-2xl shadow-lg transition-all duration-200 text-xs flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {updatingProfile ? (language === 'te' ? 'నవీకరించబడుతోంది...' : 'Updating...') : (language === 'te' ? 'ప్రొఫైల్ అప్‌డేట్ చేయి' : 'Update Profile')}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 
         </section>
+      </div>
 
+      {/* Toast system */}
+      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`p-4 rounded-2xl shadow-lg border text-xs font-bold pointer-events-auto animate-fade-in-up flex items-center gap-3 ${
+              toast.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : toast.type === 'error'
+                ? 'bg-red-50 text-red-800 border-red-200'
+                : 'bg-amber-50 text-amber-900 border-amber-200'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full shrink-0 ${
+              toast.type === 'success' ? 'bg-emerald-500 animate-ping' : toast.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+            }`} />
+            <span>{toast.message}</span>
+          </div>
+        ))}
       </div>
 
     </div>

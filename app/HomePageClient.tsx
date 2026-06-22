@@ -6,8 +6,23 @@ import Image from 'next/image';
 import ProductCard from '@/components/ProductCard';
 import { Shield, Sparkles, Truck, Award, ArrowRight, MessageCircle } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useGroupedProducts } from '@/hooks/useGroupedProducts';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=400&auto=format&fit=crop';
+
+// ─── Home page product grid with client-side variant grouping ────────────────
+function HomePageProductGrid({ products }: { products: any[] }) {
+  const grouped = useGroupedProducts(products);
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+      {grouped.map((grp) => (
+        <ProductCard key={grp.groupKey} group={grp} />
+      ))}
+    </div>
+  );
+}
+
+
 
 interface Category {
   id: string;
@@ -188,11 +203,7 @@ export default function HomePageClient({ categories, products }: Props) {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {products.map((p) => (
-            <ProductCard key={p.id} product={p as any} />
-          ))}
-        </div>
+        <HomePageProductGrid products={products} />
       </section>
 
       {/* Trust Badges */}

@@ -12,6 +12,7 @@ export interface CartItem {
   weight: number;
   unit: string;
   stock: number;
+  variantLabel?: string; // e.g. "1 Litre", "500ml", "5 Kg"
 }
 
 export interface CouponInfo {

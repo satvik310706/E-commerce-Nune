@@ -1,0 +1,978 @@
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCartStore } from '@/store/cartStore';
+import {
+  Package, Truck, Clock, CheckCircle, MapPin, Copy, Check, X,
+  AlertTriangle, ShoppingBag, Printer, ChevronDown, ChevronUp,
+  Search, Info, RotateCcw, Navigation2
+} from 'lucide-react';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+export function getTrackingId(orderId: string): string {
+  let hash = 0;
+  for (let i = 0; i < orderId.length; i++) {
+    hash = orderId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let trk = 'TRK-';
+  let tempHash = Math.abs(hash);
+  for (let i = 0; i < 8; i++) {
+    trk += chars[tempHash % chars.length];
+    tempHash = Math.floor(tempHash / chars.length);
+  }
+  return trk;
+}
+
+function getProgressPct(status: string) {
+  const map: Record<string, number> = {
+    PENDING: 10, CONFIRMED: 30, PROCESSING: 50,
+    PACKED: 68, SHIPPED: 85, OUT_FOR_DELIVERY: 85, DELIVERED: 100,
+  };
+  return map[status] ?? 0;
+}
+
+function getStepIndex(status: string, steps: { key: string }[]) {
+  if (status === 'SHIPPED') return steps.findIndex(s => s.key === 'OUT_FOR_DELIVERY');
+  return steps.findIndex(s => s.key === status);
+}
+
+const STATUS_STYLES: Record<string, { badge: string; dot: string; label: string }> = {
+  PENDING:          { badge: 'bg-yellow-50  text-yellow-700  border-yellow-200',  dot: 'bg-yellow-400',  label: 'Pending' },
+  CONFIRMED:        { badge: 'bg-blue-50    text-blue-700    border-blue-200',    dot: 'bg-blue-500',    label: 'Confirmed' },
+  PROCESSING:       { badge: 'bg-orange-50  text-orange-700  border-orange-200',  dot: 'bg-orange-500',  label: 'Processing' },
+  PACKED:           { badge: 'bg-purple-50  text-purple-700  border-purple-200',  dot: 'bg-purple-500',  label: 'Packed' },
+  OUT_FOR_DELIVERY: { badge: 'bg-indigo-50  text-indigo-700  border-indigo-200',  dot: 'bg-indigo-500',  label: 'Out for Delivery' },
+  SHIPPED:          { badge: 'bg-indigo-50  text-indigo-700  border-indigo-200',  dot: 'bg-indigo-500',  label: 'Out for Delivery' },
+  DELIVERED:        { badge: 'bg-green-50   text-green-700   border-green-200',   dot: 'bg-green-500',   label: 'Delivered' },
+  CANCELLED:        { badge: 'bg-red-50     text-red-700     border-red-200',     dot: 'bg-red-500',     label: 'Cancelled' },
+};
+
+function statusLabel(s: string) { return STATUS_STYLES[s]?.label ?? s; }
+function statusBadge(s: string) { return STATUS_STYLES[s]?.badge ?? 'bg-amber-50 text-amber-800 border-amber-200'; }
+
+function fmt(dateStr: string, opts: Intl.DateTimeFormatOptions, locale = 'en-IN') {
+  return new Date(dateStr).toLocaleString(locale, opts);
+}
+
+function getETA(createdAt: string) {
+  const d = new Date(createdAt);
+  d.setDate(d.getDate() + 3);
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function statusMsg(status: string) {
+  const msgs: Record<string, string> = {
+    PENDING: 'Your order is placed and awaiting confirmation.',
+    CONFIRMED: 'Your order has been confirmed by our warehouse.',
+    PROCESSING: 'Your wood-pressed oil is currently being prepared.',
+    PACKED: 'Your order is securely packed and ready to ship.',
+    OUT_FOR_DELIVERY: 'Our delivery representative is out delivering your package.',
+    SHIPPED: 'Our delivery representative is out delivering your package.',
+    DELIVERED: 'Delivered successfully! Thank you for buying organic.',
+    CANCELLED: 'This order has been cancelled.',
+  };
+  return msgs[status] ?? '';
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+interface ToastItem { id: string; message: string; type: 'success' | 'error' | 'info' }
+function useToastBus() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const push = (message: string, type: ToastItem['type'] = 'success') => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(p => [...p, { id, message, type }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3500);
+  };
+  return { toasts, push };
+}
+
+// ── Invoice ────────────────────────────────────────────────────────────────────
+
+function printInvoice(order: any) {
+  const trkId = getTrackingId(order.orderId);
+  const win = window.open('', '_blank');
+  if (!win) return;
+  const rows = order.items.map((it: any) => `
+    <tr>
+      <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9">${it.nameTe || it.name}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${it.quantity}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:right">₹${it.price}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:right">₹${it.price * it.quantity}</td>
+    </tr>`).join('');
+  const html = `
+  <html><head><title>Invoice – ${order.orderId}</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;color:#1c1009;padding:40px;margin:0;background:#fff}
+    .hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #b45309;padding-bottom:20px;margin-bottom:28px}
+    .logo{font-size:22px;font-weight:900;color:#78350f}.inv{font-size:26px;font-weight:900;color:#78350f;text-align:right}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:32px}
+    .box h3{margin-top:0;font-size:11px;text-transform:uppercase;color:#78350f;border-bottom:1px solid #fcd34d;padding-bottom:6px}
+    .box p{margin:4px 0;font-size:13px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#fdfbf7;padding:10px 8px;font-size:11px;text-transform:uppercase;color:#78350f;border-bottom:2px solid #fcd34d;text-align:left}
+    .tot{width:280px;margin:24px 0 0 auto;font-size:13px}
+    .tot-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #fef3c7}
+    .grand{font-size:17px;font-weight:900;color:#78350f;border-top:2px solid #b45309;padding-top:10px;margin-top:6px}
+    .ftr{text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #fed7aa;padding-top:16px;margin-top:40px}
+  </style></head><body>
+  <div class="hdr">
+    <div style="display:flex;align-items:center;gap:12px">
+      <img src="/images/logo.jpg" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #b45309" />
+      <div><div class="logo">Om Natural</div><div style="font-size:11px;color:#b45309">Chekka Ganuga Nune</div></div>
+    </div>
+    <div><div class="inv">INVOICE</div><div style="font-size:11px;color:#b45309;text-align:right">${order.orderId}</div></div>
+  </div>
+  <div class="grid">
+    <div class="box"><h3>Billed To</h3>
+      <p><strong>${order.name}</strong></p><p>${order.line1}</p>${order.line2 ? `<p>${order.line2}</p>` : ''}
+      <p>${order.city}, ${order.state} – ${order.pincode}</p><p>📞 ${order.phone}</p>
+    </div>
+    <div class="box" style="text-align:right"><h3>Order Info</h3>
+      <p><strong>Order ID:</strong> ${order.orderId}</p>
+      <p><strong>Tracking:</strong> ${trkId}</p>
+      <p><strong>Date:</strong> ${new Date(order.createdAt).toLocaleDateString('en-IN')}</p>
+      <p><strong>Payment:</strong> ${order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'PhonePe Online'}</p>
+    </div>
+  </div>
+  <table><thead><tr>
+    <th>Product</th><th style="text-align:center;width:70px">Qty</th>
+    <th style="text-align:right;width:100px">Unit Price</th><th style="text-align:right;width:100px">Total</th>
+  </tr></thead><tbody>${rows}</tbody></table>
+  <div class="tot">
+    <div class="tot-row"><span>Subtotal</span><span>₹${order.subtotal ?? 0}</span></div>
+    <div class="tot-row"><span>Shipping</span><span>₹${order.shipping ?? 0}</span></div>
+    <div class="tot-row"><span>Tax (GST)</span><span>₹${order.tax ?? 0}</span></div>
+    ${order.discount > 0 ? `<div class="tot-row" style="color:#16a34a"><span>Discount</span><span>-₹${order.discount}</span></div>` : ''}
+    <div class="tot-row grand"><span>Grand Total</span><span>₹${order.total}</span></div>
+  </div>
+  <div class="ftr"><p>Thank you for choosing Om Natural wood-pressed oils!</p><p>Computer-generated invoice. No physical signature required.</p></div>
+  <script>window.onload=()=>window.print();</script>
+  </body></html>`;
+  win.document.write(html); win.document.close();
+}
+
+// ── Tracking Steps Definition ─────────────────────────────────────────────────
+
+const STEPS = [
+  { key: 'PENDING',          label: 'Order Placed',      icon: Clock },
+  { key: 'CONFIRMED',        label: 'Confirmed',          icon: CheckCircle },
+  { key: 'PROCESSING',       label: 'Processing',         icon: Info },
+  { key: 'PACKED',           label: 'Packed',             icon: Package },
+  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery',   icon: Truck },
+  { key: 'DELIVERED',        label: 'Delivered',          icon: MapPin },
+];
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function OrderSkeleton() {
+  return (
+    <div className="bg-white rounded-3xl border border-amber-100 overflow-hidden animate-pulse">
+      <div className="p-5 sm:p-6 space-y-4">
+        <div className="flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="h-4 bg-amber-50 rounded w-44"/>
+            <div className="h-3 bg-amber-50 rounded w-32"/>
+          </div>
+          <div className="h-7 bg-amber-50 rounded-full w-24"/>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[1,2,3].map(i => <div key={i} className="h-3 bg-amber-50 rounded w-full"/>)}
+        </div>
+        <div className="h-2 bg-amber-50 rounded-full"/>
+        <div className="flex gap-2">
+          {[1,2,3].map(i => <div key={i} className="flex-1 h-9 bg-amber-50 rounded-xl"/>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Cancel Modal ──────────────────────────────────────────────────────────────
+
+interface CancelModalProps {
+  order: any;
+  onClose: () => void;
+  onSuccess: (id: string, reason: string) => void;
+  showToast: (msg: string, t?: ToastItem['type']) => void;
+}
+
+const CANCEL_REASONS = [
+  'Ordered by mistake',
+  'Changed my mind',
+  'Found a better price elsewhere',
+  'Delivery takes too long',
+  'Duplicate order',
+  'Other',
+];
+
+function CancelModal({ order, onClose, onSuccess, showToast }: CancelModalProps) {
+  const [reason, setReason] = useState('Ordered by mistake');
+  const [custom, setCustom] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const finalReason = reason === 'Other' ? (custom.trim() || 'No reason specified') : reason;
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderStatus: 'CANCELLED', notes: `Cancelled by customer. Reason: ${finalReason}` }),
+      });
+      if (res.ok) {
+        onSuccess(order.id, finalReason);
+        showToast('Order cancelled successfully!', 'success');
+        onClose();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Cancellation failed', 'error');
+      }
+    } catch {
+      showToast('Connection error. Please try again.', 'error');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-red-50 px-6 pt-6 pb-4 flex items-start gap-3">
+          <div className="w-10 h-10 bg-red-100 rounded-2xl flex items-center justify-center shrink-0">
+            <AlertTriangle size={20} className="text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-black text-red-800 text-base">Cancel Order?</h3>
+            <p className="text-xs text-red-600 mt-0.5">Order {order.orderId}</p>
+          </div>
+          <button onClick={onClose} className="ml-auto p-1 hover:bg-red-100 rounded-full transition-colors">
+            <X size={18} className="text-red-500" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="p-6 space-y-4">
+          <p className="text-sm text-gray-600 font-medium">
+            Are you sure you want to cancel this order? <span className="font-bold text-red-600">This action cannot be undone.</span>
+          </p>
+
+          {/* Reason selector */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-amber-900 block">Reason for cancellation</label>
+            <div className="grid grid-cols-1 gap-2">
+              {CANCEL_REASONS.map(r => (
+                <label key={r} className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all text-xs font-semibold ${
+                  reason === r ? 'border-amber-400 bg-amber-50 text-amber-900' : 'border-gray-100 hover:border-amber-200 text-gray-600'
+                }`}>
+                  <input type="radio" name="reason" value={r} checked={reason === r}
+                    onChange={() => setReason(r)} className="accent-amber-600 w-3.5 h-3.5" />
+                  {r}
+                </label>
+              ))}
+            </div>
+            {reason === 'Other' && (
+              <textarea
+                value={custom}
+                onChange={e => setCustom(e.target.value)}
+                placeholder="Tell us more…"
+                rows={2}
+                className="w-full text-xs border border-amber-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-amber-400/30 resize-none font-medium"
+              />
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 py-3 font-bold text-xs rounded-2xl transition-colors">
+              Keep Order
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 font-bold text-xs rounded-2xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+              {loading ? <><div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"/> Cancelling…</> : 'Yes, Cancel Order'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Tracking Drawer ────────────────────────────────────────────────────────────
+
+interface TrackingDrawerProps {
+  order: any;
+  onClose: () => void;
+  copiedId: string | null;
+  onCopy: (id: string) => void;
+}
+
+function TrackingDrawer({ order, onClose, copiedId, onCopy }: TrackingDrawerProps) {
+  const trkId = getTrackingId(order.orderId);
+  const isCancelled = order.orderStatus === 'CANCELLED';
+  const currentIdx = getStepIndex(order.orderStatus, STEPS);
+  const progressPct = getProgressPct(order.orderStatus);
+  const eta = getETA(order.createdAt);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div
+        className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-8 h-1 bg-gray-200 rounded-full"/>
+        </div>
+
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-amber-50 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-amber-800 rounded-2xl flex items-center justify-center">
+              <Truck size={18} className="text-white" />
+            </div>
+            <div>
+              <h3 className="font-black text-amber-950 text-sm">Track Order</h3>
+              <p className="text-[11px] text-gray-400 font-semibold">{order.orderId}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-amber-50 rounded-xl transition-colors">
+            <X size={18} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Body scroll */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+
+          {/* Tracking ID */}
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Tracking ID</p>
+              <p className="font-mono font-black text-amber-900 text-sm">{trkId}</p>
+            </div>
+            <button
+              onClick={() => onCopy(trkId)}
+              className="flex items-center gap-1.5 text-xs font-bold bg-white border border-amber-200 text-amber-800 hover:bg-amber-100 px-3 py-1.5 rounded-xl transition-colors"
+            >
+              {copiedId === trkId ? <><Check size={12} className="text-green-600"/> Copied!</> : <><Copy size={12}/> Copy</>}
+            </button>
+          </div>
+
+          {/* Status + ETA row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white border border-amber-100 rounded-2xl p-3.5">
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Current Status</p>
+              <span className={`text-xs font-black px-2.5 py-1 rounded-full border ${statusBadge(order.orderStatus)}`}>
+                {statusLabel(order.orderStatus)}
+              </span>
+            </div>
+            <div className="bg-white border border-amber-100 rounded-2xl p-3.5">
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Expected Delivery</p>
+              <p className="text-xs font-black text-amber-900">{isCancelled ? 'N/A' : eta}</p>
+            </div>
+          </div>
+
+          {/* Latest Update */}
+          {!isCancelled && (
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex gap-3">
+              <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-blue-800">Latest Update</p>
+                <p className="text-[11px] text-blue-600 mt-0.5 font-medium">{statusMsg(order.orderStatus)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Progress Bar */}
+          {!isCancelled && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                <span>Order Placed</span><span>{progressPct}% Complete</span>
+              </div>
+              <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-amber-500 to-amber-700 rounded-full transition-all duration-700"
+                  style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="flex justify-end text-[10px] font-bold text-gray-400">
+                <span>Delivered</span>
+              </div>
+            </div>
+          )}
+
+          {/* Cancelled Banner */}
+          {isCancelled && (
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex gap-3">
+              <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-red-800">Order Cancelled</p>
+                <p className="text-[11px] text-red-500 mt-0.5">{order.notes || 'This order was cancelled.'}</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {fmt(order.updatedAt, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Vertical Timeline */}
+          {!isCancelled && (
+            <div className="space-y-0">
+              {STEPS.map((step, idx) => {
+                const isCompleted = idx <= currentIdx;
+                const isCurrent = idx === currentIdx;
+                const isLast = idx === STEPS.length - 1;
+                const IconComp = step.icon;
+                return (
+                  <div key={step.key} className="flex gap-3">
+                    {/* Spine */}
+                    <div className="flex flex-col items-center">
+                      <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                        isCompleted ? 'bg-amber-700 border-amber-700 text-white shadow-md' : 'bg-white border-gray-200 text-gray-300'
+                      } ${isCurrent ? 'ring-4 ring-amber-100 scale-110' : ''}`}>
+                        {isCompleted ? <Check size={13} strokeWidth={3} /> : <IconComp size={12} />}
+                      </div>
+                      {!isLast && (
+                        <div className={`w-0.5 flex-1 min-h-[28px] my-1 rounded-full transition-colors ${isCompleted ? 'bg-amber-400' : 'bg-gray-100'}`} />
+                      )}
+                    </div>
+                    {/* Content */}
+                    <div className="pb-5 pt-1 flex-1">
+                      <p className={`text-xs font-black ${isCompleted ? 'text-amber-950' : 'text-gray-300'}`}>{step.label}</p>
+                      {isCurrent && (
+                        <span className="inline-block mt-1 text-[9px] bg-amber-700 text-white font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Single Order Card ─────────────────────────────────────────────────────────
+
+interface OrderCardProps {
+  order: any;
+  expanded: boolean;
+  onToggle: () => void;
+  onCancelSuccess: (id: string, reason: string) => void;
+  showToast: (msg: string, t?: ToastItem['type']) => void;
+  onReorder: (order: any) => void;
+}
+
+function OrderCard({ order, expanded, onToggle, onCancelSuccess, showToast, onReorder }: OrderCardProps) {
+  const [showTracking, setShowTracking] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const trkId = getTrackingId(order.orderId);
+  const progressPct = getProgressPct(order.orderStatus);
+  const isCancelled = order.orderStatus === 'CANCELLED';
+  const canCancel = ['PENDING', 'CONFIRMED', 'PROCESSING'].includes(order.orderStatus);
+  const statusInfo = STATUS_STYLES[order.orderStatus] ?? STATUS_STYLES['PENDING'];
+
+  const handleCopy = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    showToast('Tracking ID copied!', 'success');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const orderDate = fmt(order.createdAt, { day: 'numeric', month: 'short', year: 'numeric' });
+  const updatedAt = fmt(order.updatedAt, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+  const eta = getETA(order.createdAt);
+
+  return (
+    <>
+      {showTracking && (
+        <TrackingDrawer
+          order={order}
+          onClose={() => setShowTracking(false)}
+          copiedId={copiedId}
+          onCopy={handleCopy}
+        />
+      )}
+
+      {showCancel && (
+        <CancelModal
+          order={order}
+          onClose={() => setShowCancel(false)}
+          onSuccess={onCancelSuccess}
+          showToast={showToast}
+        />
+      )}
+
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
+
+        {/* ── Card Header ── */}
+        <div
+          className="p-4 sm:p-5 cursor-pointer select-none"
+          onClick={onToggle}
+        >
+          {/* Top row: Order ID + Status badge */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <span className="font-mono font-black text-amber-900 text-sm truncate">{order.orderId}</span>
+                <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wide ${statusInfo.badge}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`}/>
+                  {statusLabel(order.orderStatus)}
+                </span>
+              </div>
+              {/* Meta chips row */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-400 font-semibold">
+                <span>📅 {orderDate}</span>
+                <span>🕐 Updated {updatedAt}</span>
+                {!isCancelled && <span>📦 ETA: {eta}</span>}
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              <div className="text-right hidden sm:block">
+                <p className="text-lg font-black text-amber-900">₹{order.total}</p>
+                <p className="text-[10px] text-gray-400">{order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'PhonePe'}</p>
+              </div>
+              <div className="p-1.5 bg-amber-50 rounded-xl text-amber-600">
+                {expanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile total */}
+          <div className="flex items-center justify-between mt-2 sm:hidden">
+            <span className="text-sm font-black text-amber-900">₹{order.total}</span>
+            <span className="text-[10px] text-gray-400 font-medium">{order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'PhonePe'}</span>
+          </div>
+
+          {/* Progress bar (non-cancelled) */}
+          {!isCancelled && (
+            <div className="mt-3.5 space-y-1.5">
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-amber-800 rounded-full transition-all duration-700"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-bold text-gray-300">
+                <span>Order Placed</span>
+                <span className="text-amber-600">{progressPct}%</span>
+                <span>Delivered</span>
+              </div>
+            </div>
+          )}
+
+          {/* Cancelled ribbon */}
+          {isCancelled && (
+            <div className="mt-3 inline-flex items-center gap-1.5 bg-red-50 text-red-600 border border-red-100 rounded-xl px-3 py-1.5 text-[10px] font-black">
+              <AlertTriangle size={11}/> This order was cancelled
+            </div>
+          )}
+
+          {/* Quick action row */}
+          <div className="mt-4 flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowTracking(true)}
+              className="flex items-center gap-1.5 bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-sm"
+            >
+              <Navigation2 size={12}/> Track Order
+            </button>
+            {canCancel && (
+              <button
+                onClick={() => setShowCancel(true)}
+                className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors"
+              >
+                <X size={12}/> Cancel
+              </button>
+            )}
+            <button
+              onClick={() => printInvoice(order)}
+              className="flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-100 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors"
+            >
+              <Printer size={12}/> Invoice
+            </button>
+          </div>
+        </div>
+
+        {/* ── Expanded Detail Panel ── */}
+        {expanded && (
+          <div className="border-t border-gray-50 animate-fade-in-up">
+
+            {/* Tracking ID strip */}
+            <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-100/50 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400 font-bold">Tracking ID:</span>
+                <span className="font-mono font-black text-amber-900">{trkId}</span>
+              </div>
+              <button
+                onClick={() => handleCopy(trkId)}
+                className="flex items-center gap-1 text-[10px] font-bold bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                {copiedId === trkId ? <><Check size={10} className="text-green-500"/> Copied</> : <><Copy size={10}/> Copy</>}
+              </button>
+            </div>
+
+            {/* Horizontal desktop timeline */}
+            {!isCancelled && (
+              <div className="hidden sm:block px-6 py-6">
+                <div className="relative flex justify-between">
+                  {/* Track line */}
+                  <div className="absolute top-5 left-5 right-5 h-0.5 bg-gray-100 z-0">
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-700"
+                      style={{ width: `${(Math.max(0, getStepIndex(order.orderStatus, STEPS)) / (STEPS.length - 1)) * 100}%` }}
+                    />
+                  </div>
+                  {STEPS.map((step, idx) => {
+                    const currentIdx = getStepIndex(order.orderStatus, STEPS);
+                    const isCompleted = idx <= currentIdx;
+                    const isCurrent = idx === currentIdx;
+                    const IconComp = step.icon;
+                    return (
+                      <div key={step.key} className="relative z-10 flex flex-col items-center text-center" style={{ width: '80px' }}>
+                        <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${
+                          isCompleted ? 'bg-amber-700 border-amber-700 text-white shadow-md' : 'bg-white border-gray-200 text-gray-300'
+                        } ${isCurrent ? 'ring-4 ring-amber-100 scale-110' : ''}`}>
+                          {isCompleted ? <Check size={14} strokeWidth={3} /> : <IconComp size={13} />}
+                        </div>
+                        <p className={`mt-2 text-[10px] font-bold leading-tight ${isCompleted ? 'text-amber-950' : 'text-gray-300'}`}>
+                          {step.label}
+                        </p>
+                        {isCurrent && (
+                          <span className="mt-1 text-[8px] bg-amber-700 text-white font-bold px-1.5 py-0.5 rounded uppercase tracking-wide">
+                            Now
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Mobile vertical timeline */}
+            {!isCancelled && (
+              <div className="sm:hidden px-5 py-4">
+                {STEPS.map((step, idx) => {
+                  const currentIdx = getStepIndex(order.orderStatus, STEPS);
+                  const isCompleted = idx <= currentIdx;
+                  const isCurrent = idx === currentIdx;
+                  const isLast = idx === STEPS.length - 1;
+                  const IconComp = step.icon;
+                  return (
+                    <div key={step.key} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isCompleted ? 'bg-amber-700 border-amber-700 text-white' : 'bg-white border-gray-200 text-gray-300'
+                        } ${isCurrent ? 'ring-2 ring-amber-200' : ''}`}>
+                          {isCompleted ? <Check size={12} strokeWidth={3} /> : <IconComp size={11} />}
+                        </div>
+                        {!isLast && <div className={`w-0.5 min-h-[24px] flex-1 my-1 ${isCompleted ? 'bg-amber-300' : 'bg-gray-100'}`} />}
+                      </div>
+                      <div className="pb-4 pt-0.5">
+                        <p className={`text-xs font-black ${isCompleted ? 'text-amber-950' : 'text-gray-300'}`}>{step.label}</p>
+                        {isCurrent && <span className="text-[9px] text-amber-700 font-bold">← Current</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Cancelled Notice */}
+            {isCancelled && (
+              <div className="mx-5 mt-4 bg-red-50 border border-red-100 rounded-2xl p-4 flex gap-3">
+                <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-black text-red-800">Order Cancelled</p>
+                  <p className="text-[11px] text-red-500 mt-0.5">{order.notes || 'This order was cancelled by customer.'}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Cancelled at: {updatedAt}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Product Items */}
+            <div className="px-5 py-4 border-t border-gray-50">
+              <p className="text-xs font-black text-amber-950 mb-3 flex items-center gap-1.5">
+                <ShoppingBag size={14} className="text-amber-700" /> Ordered Items
+              </p>
+              <div className="space-y-3">
+                {order.items.map((item: any, idx: number) => (
+                  <div key={item.id ?? idx} className="flex items-center gap-3">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-12 h-12 rounded-2xl object-cover border border-amber-100 bg-amber-50 shrink-0"
+                      onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=100&auto=format&fit=crop'; }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black text-amber-950 truncate">{item.nameTe || item.name}</p>
+                      {item.variantLabel && (
+                        <p className="text-[10px] text-gray-400 font-medium">Variant: {item.variantLabel}</p>
+                      )}
+                      <p className="text-[10px] text-gray-400 font-semibold">Qty {item.quantity} × ₹{item.price}</p>
+                    </div>
+                    <span className="text-xs font-black text-amber-900 shrink-0">₹{item.price * item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Address + Payment */}
+            <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-gray-50">
+              {/* Delivery Address */}
+              <div className="bg-gray-50 rounded-2xl p-4 mt-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <MapPin size={10}/> Delivery Address
+                </p>
+                <p className="text-xs font-black text-amber-950">{order.name}</p>
+                <p className="text-[11px] text-gray-500 font-medium mt-0.5">{order.phone}</p>
+                <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">
+                  {order.line1}{order.line2 && `, ${order.line2}`},<br/>
+                  {order.city}, {order.state} – {order.pincode}
+                </p>
+              </div>
+
+              {/* Payment */}
+              <div className="bg-gray-50 rounded-2xl p-4 mt-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">Payment Summary</p>
+                <div className="space-y-1 text-[11px] text-gray-600 font-medium">
+                  <div className="flex justify-between">
+                    <span>Method</span>
+                    <span className="font-bold text-amber-900">{order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'PhonePe'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Status</span>
+                    <span className={`font-bold ${order.paymentStatus === 'COMPLETED' ? 'text-green-700' : 'text-yellow-700'}`}>
+                      {order.paymentStatus}
+                    </span>
+                  </div>
+                  {(order.discount ?? 0) > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span><span>-₹{order.discount}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-2 mt-1 border-t border-gray-200 font-black text-amber-900 text-xs">
+                    <span>Grand Total</span><span>₹{order.total}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Expanded Action Buttons */}
+            <div className="px-5 pb-5 flex flex-wrap gap-2 border-t border-gray-50 pt-4">
+              <button
+                onClick={() => setShowTracking(true)}
+                className="flex items-center gap-1.5 bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
+              >
+                <Navigation2 size={12}/> Track Order
+              </button>
+              {canCancel && (
+                <button
+                  onClick={() => setShowCancel(true)}
+                  className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
+                >
+                  <X size={12}/> Cancel Order
+                </button>
+              )}
+              <button
+                onClick={() => printInvoice(order)}
+                className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-100 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
+              >
+                <Printer size={12}/> Download Invoice
+              </button>
+              <button
+                onClick={() => onReorder(order)}
+                className="flex items-center gap-1.5 bg-white hover:bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
+              >
+                <RotateCcw size={12}/> Reorder
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── Main Section ──────────────────────────────────────────────────────────────
+
+interface OrderHistorySectionProps {
+  orders: any[];
+  loadingOrders: boolean;
+  language: string;
+  t: (...args: any[]) => string;
+  onOrdersChange: (updater: (prev: any[]) => any[]) => void;
+}
+
+export default function OrderHistorySection({
+  orders,
+  loadingOrders,
+  language,
+  t,
+  onOrdersChange,
+}: OrderHistorySectionProps) {
+  const router = useRouter();
+  const { toasts, push: showToast } = useToastBus();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filteredOrders = orders.filter(ord => {
+    const trkId = getTrackingId(ord.orderId);
+    const q = searchQuery.toLowerCase();
+    return (
+      ord.orderId.toLowerCase().includes(q) ||
+      trkId.toLowerCase().includes(q) ||
+      (ord.name || '').toLowerCase().includes(q)
+    );
+  });
+
+  const handleCancelSuccess = (id: string, reason: string) => {
+    onOrdersChange(prev => prev.map(o => o.id === id ? {
+      ...o, orderStatus: 'CANCELLED',
+      notes: `Cancelled by customer. Reason: ${reason}`,
+      updatedAt: new Date().toISOString(),
+    } : o));
+  };
+
+  const handleReorder = async (order: any) => {
+    showToast('Adding products to cart...', 'info');
+    try {
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error();
+      const dbProducts = await res.json();
+      const cartStore = useCartStore.getState();
+      let count = 0;
+
+      for (const item of order.items) {
+        const p = dbProducts.find((prod: any) => prod.id === item.productId);
+        if (p && p.isActive) {
+          const w = p.weight, u = p.unit;
+          let label = `${w} ${u}`;
+          if (u === 'Litre' || u === 'Liter') label = w >= 1 ? `${w} Litre` : `${Math.round(w * 1000)} ml`;
+          else if (u === 'Gram' || u === 'g') label = w >= 1000 ? `${w / 1000} Kg` : `${w} g`;
+          else if (u === 'Kg' || u === 'kg') label = `${w} Kg`;
+          else if (u === 'ml') label = w >= 1000 ? `${w / 1000} L` : `${w} ml`;
+          cartStore.addItem({
+            productId: p.id, name: p.name, nameTe: p.nameTe, price: p.price, mrp: p.mrp,
+            quantity: item.quantity, image: p.images[0] || item.image, weight: p.weight,
+            unit: p.unit, stock: p.stock, variantLabel: label,
+          });
+          count++;
+        }
+      }
+
+      if (count > 0) {
+        showToast(`${count} item${count > 1 ? 's' : ''} added to cart!`, 'success');
+        router.push('/cart');
+      } else {
+        showToast('Sorry, products are not available currently.', 'error');
+      }
+    } catch {
+      showToast('Error placing reorder.', 'error');
+    }
+  };
+
+  return (
+    <div className="space-y-5 relative">
+
+      {/* Toast stack */}
+      <div className="fixed top-5 right-4 z-[200] space-y-2 pointer-events-none">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white border transition-all duration-300 ${
+              toast.type === 'success' ? 'bg-green-600 border-green-500' :
+              toast.type === 'error'   ? 'bg-red-600   border-red-500' :
+              'bg-blue-600 border-blue-500'
+            }`}
+          >
+            {toast.type === 'success' && <Check size={14} strokeWidth={3}/>}
+            {toast.type === 'error'   && <AlertTriangle size={14}/>}
+            {toast.type === 'info'    && <Info size={14}/>}
+            {toast.message}
+          </div>
+        ))}
+      </div>
+
+      {/* Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
+            <Package size={18} className="text-amber-700"/> My Orders
+          </h3>
+          <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+            {orders.length} order{orders.length !== 1 ? 's' : ''} placed
+          </p>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by Order ID or Tracking ID…"
+            className="w-full sm:w-72 bg-white border border-gray-200 text-xs rounded-2xl py-2.5 pl-8 pr-4 focus:outline-none focus:ring-2 focus:ring-amber-400/30 font-semibold placeholder-gray-300"
+          />
+        </div>
+      </div>
+
+      {/* Loading skeletons */}
+      {loadingOrders && (
+        <div className="space-y-4">
+          <OrderSkeleton /><OrderSkeleton />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loadingOrders && filteredOrders.length === 0 && (
+        <div className="bg-white rounded-3xl border-2 border-dashed border-amber-100 p-12 text-center space-y-4">
+          <div className="w-16 h-16 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto">
+            <ShoppingBag size={28} className="text-amber-300" />
+          </div>
+          <div>
+            <p className="font-black text-amber-900 text-sm">
+              {searchQuery ? 'No orders found matching your search' : t('account_no_orders')}
+            </p>
+            {!searchQuery && (
+              <p className="text-xs text-gray-400 mt-1">Your order history will appear here.</p>
+            )}
+          </div>
+          {!searchQuery && (
+            <button
+              onClick={() => router.push('/products')}
+              className="bg-amber-800 hover:bg-amber-700 text-white font-bold px-6 py-2.5 rounded-full text-xs shadow-sm"
+            >
+              {t('account_browse_products')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Order list */}
+      {!loadingOrders && filteredOrders.length > 0 && (
+        <div className="space-y-4">
+          {filteredOrders.map(ord => (
+            <OrderCard
+              key={ord.id}
+              order={ord}
+              expanded={expandedId === ord.id}
+              onToggle={() => setExpandedId(prev => prev === ord.id ? null : ord.id)}
+              onCancelSuccess={handleCancelSuccess}
+              showToast={showToast}
+              onReorder={handleReorder}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

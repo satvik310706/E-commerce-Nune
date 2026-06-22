@@ -6,9 +6,23 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { useLanguage } from '@/context/LanguageContext';
+import { useGroupedProducts } from '@/hooks/useGroupedProducts';
 import { Search, Filter, ArrowUpDown, ChevronDown } from 'lucide-react';
 import PremiumLoader from '@/components/PremiumLoader';
 import CustomSelect from '@/components/CustomSelect';
+
+
+// Groups flat product list into variant groups then renders ProductCards
+function GroupedProductGrid({ products }: { products: any[] }) {
+  const grouped = useGroupedProducts(products);
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 animate-fade-in-up">
+      {grouped.map((grp) => (
+        <ProductCard key={grp.groupKey} group={grp} />
+      ))}
+    </div>
+  );
+}
 
 // Wrapper to handle Suspense boundary for useSearchParams
 function ProductListingContent() {
@@ -315,11 +329,7 @@ function ProductListingContent() {
             </div>
           ) : (
             /* Products Grid */
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 animate-fade-in-up">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            <GroupedProductGrid products={products} />
           )}
 
         </section>
