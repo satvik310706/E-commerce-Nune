@@ -14,8 +14,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     const { id } = params;
 
-    const order = await prisma.order.findUnique({
-      where: { id },
+    const order = await prisma.order.findFirst({
+      where: {
+        OR: [
+          { id },
+          { orderId: id }
+        ]
+      },
       include: {
         items: true,
         user: {
@@ -43,12 +48,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-// PUT /api/orders/[id] - Update order/payment status (Admin Only)
+// PUT /api/orders/[id] - Update order/payment status (Admin or Customer cancel)
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized. Admin role required.' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
@@ -64,6 +69,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
+    const isAdmin = session.user.role === 'ADMIN';
+
+    // Authorization & Validation
+    if (!isAdmin) {
+      // Customer is attempting to update the order
+      if (existingOrder.userId !== session.user.id) {
+        return NextResponse.json({ error: 'Unauthorized to update this order' }, { status: 401 });
+      }
+
+      // Customer can ONLY transition status to CANCELLED
+      if (orderStatus !== 'CANCELLED') {
+        return NextResponse.json({ error: 'Unauthorized action. Customers can only cancel their orders.' }, { status: 400 });
+      }
+
+      // Customer can only cancel if the current order status is PENDING, CONFIRMED, or PROCESSING
+      const cancelableStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING'];
+      if (!cancelableStatuses.includes(existingOrder.orderStatus)) {
+        return NextResponse.json({ error: 'This order cannot be cancelled as it is already packed or shipped.' }, { status: 400 });
+      }
+    }
+
     // Process inventory release if order is cancelled and it was COD (since COD stock was deducted immediately)
     // For online payments, if payment fails/cancels we release stock or if admin cancels confirmed order we release stock.
     const isCancelling = orderStatus === 'CANCELLED' && existingOrder.orderStatus !== 'CANCELLED';
@@ -74,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         where: { id },
         data: {
           orderStatus,
-          paymentStatus,
+          paymentStatus: isAdmin ? paymentStatus : existingOrder.paymentStatus,
           notes,
         },
         include: {

@@ -53,7 +53,7 @@ export default function MobileBottomNav() {
         <div className="relative">
           <ShoppingCart size={20} className={isCart ? 'stroke-[2.5px]' : 'stroke-[1.8px]'} />
           {mounted && cartItemsCount > 0 && (
-            <span className="absolute -top-2.5 -right-2.5 bg-gradient-to-br from-amber-500 to-amber-600 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-white shadow-sm">
+            <span className="absolute -top-2.5 -right-2.5 bg-gradient-to-br from-amber-600 to-amber-700 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-white shadow-sm">
               {cartItemsCount}
             </span>
           )}

@@ -41,11 +41,16 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.phone = user.phone;
+      }
+      if (trigger === 'update' && session) {
+        token.name = session.name;
+        token.email = session.email;
+        token.phone = session.phone;
       }
       return token;
     },
@@ -54,6 +59,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.phone = token.phone as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
       }
       return session;
     },

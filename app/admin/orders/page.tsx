@@ -113,7 +113,7 @@ export default function AdminOrdersPage() {
 
               {/* Status Filters */}
               <div className="flex items-center space-x-2 bg-white border border-amber-100 px-4 py-2 rounded-2xl smooth-shadow shrink-0 text-xs">
-                <Filter size={14} className="text-amber-850" />
+                <Filter size={14} className="text-amber-900" />
                 <CustomSelect
                   value={statusFilter}
                   onChange={(val) => setStatusFilter(val)}
@@ -121,7 +121,9 @@ export default function AdminOrdersPage() {
                     { value: '', label: t('admin_filter_all') },
                     { value: 'PENDING', label: language === 'te' ? 'పెండింగ్' : 'Pending' },
                     { value: 'CONFIRMED', label: language === 'te' ? 'నిర్ధారించబడింది' : 'Confirmed' },
+                    { value: 'PROCESSING', label: language === 'te' ? 'ప్రాసెసింగ్' : 'Processing' },
                     { value: 'PACKED', label: language === 'te' ? 'ప్యాక్ చేయబడింది' : 'Packed' },
+                    { value: 'OUT_FOR_DELIVERY', label: language === 'te' ? 'డెలివరీలో ఉంది' : 'Out for Delivery' },
                     { value: 'SHIPPED', label: language === 'te' ? 'రవాణా లో ఉంది' : 'Shipped' },
                     { value: 'DELIVERED', label: language === 'te' ? 'డెలివరీ పూర్తయింది' : 'Delivered' },
                     { value: 'CANCELLED', label: language === 'te' ? 'రద్దు చేయబడింది' : 'Cancelled' },
@@ -177,8 +179,16 @@ export default function AdminOrdersPage() {
                                 ord.orderStatus === 'DELIVERED'
                                   ? 'bg-green-100 text-green-800 border-green-200'
                                   : ord.orderStatus === 'CANCELLED'
-                                  ? 'bg-red-50 text-red-800 border-red-200'
-                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : ord.orderStatus === 'CONFIRMED'
+                                  ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                  : ord.orderStatus === 'PROCESSING'
+                                  ? 'bg-orange-100 text-orange-800 border-orange-200'
+                                  : ord.orderStatus === 'PACKED'
+                                  ? 'bg-purple-100 text-purple-800 border-purple-200'
+                                  : ord.orderStatus === 'OUT_FOR_DELIVERY' || ord.orderStatus === 'SHIPPED'
+                                  ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                                  : 'bg-yellow-100 text-yellow-800 border-yellow-250'
                               }`}>
                                 {ord.orderStatus === 'DELIVERED'
                                   ? (language === 'te' ? 'డెలివరీ అయింది' : 'DELIVERED')
@@ -186,10 +196,12 @@ export default function AdminOrdersPage() {
                                   ? (language === 'te' ? 'రద్దు చేయబడింది' : 'CANCELLED')
                                   : ord.orderStatus === 'PACKED'
                                   ? (language === 'te' ? 'ప్యాక్ చేయబడింది' : 'PACKED')
-                                  : ord.orderStatus === 'SHIPPED'
-                                  ? (language === 'te' ? 'రవాణా లో ఉంది' : 'SHIPPED')
+                                  : ord.orderStatus === 'SHIPPED' || ord.orderStatus === 'OUT_FOR_DELIVERY'
+                                  ? (language === 'te' ? 'డెలివరీలో ఉంది' : 'OUT FOR DELIVERY')
                                   : ord.orderStatus === 'CONFIRMED'
                                   ? (language === 'te' ? 'స్థిరపరచబడింది' : 'CONFIRMED')
+                                  : ord.orderStatus === 'PROCESSING'
+                                  ? (language === 'te' ? 'ప్రాసెసింగ్' : 'PROCESSING')
                                   : (language === 'te' ? 'పెండింగ్' : 'PENDING')}
                               </span>
                             </td>
@@ -209,7 +221,7 @@ export default function AdminOrdersPage() {
                           {/* Row Expansion */}
                           {isExpanded && (
                             <tr>
-                              <td colSpan={8} className="bg-amber-50/20 border-b border-amber-150 p-5">
+                              <td colSpan={8} className="bg-amber-50/20 border-b border-amber-100 p-5">
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs font-semibold leading-relaxed">
                                   {/* Ordered items listing */}
                                   <div className="space-y-2">
@@ -240,7 +252,7 @@ export default function AdminOrdersPage() {
                                           href={`https://www.google.com/maps/search/?api=1&query=${ord.latitude},${ord.longitude}`}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center space-x-1 mt-2 text-[10px] font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/80 border border-amber-250 px-2.5 py-1 rounded-xl shadow-xs transition-all"
+                                          className="inline-flex items-center space-x-1 mt-2 text-[10px] font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/80 border border-amber-200 px-2.5 py-1 rounded-xl shadow-xs transition-all"
                                         >
                                           <span>{t('admin_view_map')}</span>
                                         </a>
@@ -262,7 +274,9 @@ export default function AdminOrdersPage() {
                                           options={[
                                             { value: 'PENDING', label: language === 'te' ? 'పెండింగ్' : 'Pending' },
                                             { value: 'CONFIRMED', label: language === 'te' ? 'నిర్ధారించబడింది' : 'Confirmed' },
+                                            { value: 'PROCESSING', label: language === 'te' ? 'ప్రాసెసింగ్' : 'Processing' },
                                             { value: 'PACKED', label: language === 'te' ? 'ప్యాక్ చేయబడింది' : 'Packed' },
+                                            { value: 'OUT_FOR_DELIVERY', label: language === 'te' ? 'డెలివరీలో ఉంది' : 'Out for Delivery' },
                                             { value: 'SHIPPED', label: language === 'te' ? 'రవాణా లో ఉంది' : 'Shipped' },
                                             { value: 'DELIVERED', label: language === 'te' ? 'డెలివరీ పూర్తయింది' : 'Delivered' },
                                             { value: 'CANCELLED', label: language === 'te' ? 'రద్దు చేయబడింది' : 'Cancelled' },

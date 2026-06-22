@@ -54,7 +54,7 @@ export default function CustomSelect({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between bg-white border border-amber-250 rounded-xl px-4 py-2.5 text-left text-amber-950 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all smooth-shadow hover:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-left text-amber-950 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all smooth-shadow hover:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <span className="truncate">{displayLabel}</span>
         <ChevronDown size={14} className={`text-amber-700 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { ShoppingCart, User, Menu, X, Search, MapPin, Phone, MessageCircle, Globe } from 'lucide-react';
@@ -19,12 +20,23 @@ export default function Navbar() {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [animateCart, setAnimateCart] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const cartItemsCount = useCartStore((state) => state.getCartCount());
 
   useEffect(() => {
     setMounted(true);
+
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   useEffect(() => {
@@ -59,44 +71,71 @@ export default function Navbar() {
   const isActive = (path: string) => pathname === path;
 
   const navLinkClass = (path: string) =>
-    `relative px-3 py-2 text-sm font-semibold transition-all duration-200 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:rounded-full after:transition-transform after:duration-200 ${
+    `relative px-3 py-2 text-sm font-bold transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[3px] after:w-full after:rounded-full after:transition-transform after:duration-300 ${
       isActive(path)
-        ? 'text-amber-800 after:bg-amber-600 after:scale-x-100'
-        : 'text-amber-900/80 after:bg-amber-400 after:scale-x-0 hover:text-amber-800 hover:after:scale-x-100'
+        ? 'text-amber-800 after:bg-amber-600 after:scale-x-100 font-extrabold'
+        : 'text-amber-950/80 after:bg-amber-400 after:scale-x-0 hover:text-amber-800 hover:after:scale-x-100'
     }`;
 
   return (
-    <header className="sticky top-0 z-50 w-full">
+    <header className="sticky top-0 z-50 w-full transition-all duration-300">
       {/* Main Header */}
-      <div className="w-full bg-white/96 backdrop-blur-md border-b border-amber-100/80 smooth-shadow">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 h-16 flex items-center gap-3 sm:gap-4">
+      <div className={`w-full bg-white/95 backdrop-blur-md border-b smooth-shadow transition-all duration-300 ${
+        scrolled 
+          ? 'h-14 border-amber-100/40 shadow-md' 
+          : 'h-16 border-amber-100/80'
+      }`}>
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 h-full flex items-center gap-3 sm:gap-4">
           
-          {/* Brand Logo — fixed width so it never steals space from search */}
+          {/* Brand Logo & Name */}
           <div className="flex-shrink-0">
-            <Link href="/" className="flex flex-col group">
-              <span className="text-sm sm:text-lg lg:text-xl font-black tracking-tight text-amber-900 leading-tight font-heading group-hover:text-amber-700 transition-colors whitespace-nowrap">
-                {language === 'te' ? 'ఓం సహజ చెక్క గానుగ నూనెలు' : 'OM Natural Chekka Ganuga Oils'}
-              </span>
-              <span className="hidden sm:block text-[9px] font-bold tracking-[0.15em] text-amber-600/70 uppercase">
-                100% Pure Cold Pressed
-              </span>
+            <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group py-1">
+              {/* Circular Logo with a premium gradient border and glow effect */}
+              <div className={`relative rounded-full p-[2px] bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-700 shadow-md transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_0_15px_rgba(217,119,6,0.3)] ${
+                scrolled ? 'w-9 h-9' : 'w-11 h-11 sm:w-12 sm:h-12'
+              }`}>
+                <div className="w-full h-full rounded-full overflow-hidden bg-white relative">
+                  <Image
+                    src="/images/logo.jpg"
+                    alt="OM Natural Logo"
+                    fill
+                    sizes="(max-width: 640px) 40px, 48px"
+                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    priority
+                  />
+                </div>
+              </div>
+              
+              {/* Brand Name styled in harmony with the logo colors */}
+              <div className="flex flex-col">
+                <span className={`font-black tracking-tight text-amber-900 leading-none font-heading transition-all duration-300 group-hover:text-amber-700 ${
+                  scrolled ? 'text-xs sm:text-sm' : 'text-sm sm:text-base lg:text-lg'
+                }`}>
+                  {language === 'te' ? 'ఓం సహజ' : 'OM Natural'}
+                </span>
+                <span className={`font-extrabold tracking-[0.12em] text-amber-700 leading-none uppercase transition-all duration-300 group-hover:text-amber-600 ${
+                  scrolled ? 'text-[7px] sm:text-[8px] mt-0.5' : 'text-[8px] sm:text-[9px] mt-1'
+                }`}>
+                  {language === 'te' ? 'చెక్క గానుగ' : 'Chekka Ganuga'}
+                </span>
+              </div>
             </Link>
           </div>
 
           {/* Desktop Search — takes all available middle space */}
-          <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-sm lg:max-w-md mx-auto relative">
+          <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-sm lg:max-w-md mx-auto relative group">
             <input
               type="text"
               placeholder={t('nav_search_placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-amber-50 text-amber-900 border border-amber-200 rounded-full py-2 pl-4 pr-11 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300 placeholder:text-amber-400/70"
+              className="w-full bg-amber-50/40 text-amber-950 border border-amber-200/80 rounded-full py-2 pl-4 pr-11 text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-600/10 focus:border-amber-600 transition-all duration-300 placeholder:text-amber-700/45"
             />
             <button
               type="submit"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-600 hover:text-amber-900 transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-700 hover:text-amber-800 transition-colors duration-200"
             >
-              <Search size={18} />
+              <Search size={17} />
             </button>
           </form>
 
@@ -108,7 +147,7 @@ export default function Navbar() {
             <Link href="/" className={navLinkClass('/')}>{t('nav_home')}</Link>
             <Link href="/products?category=cold-pressed" className={navLinkClass('/products?category=cold-pressed')}>{t('nav_oils')}</Link>
             <Link href="/products?category=refined-filtered" className={navLinkClass('/products?category=refined-filtered')}>{t('nav_pooja')}</Link>
-            <Link href="/track-order" className={navLinkClass('/track-order')}>{t('nav_track')}</Link>
+            <Link href="/account?tab=orders" className={navLinkClass('/account')}>{t('nav_track')}</Link>
           </nav>
 
           {/* Actions — flex-shrink-0 so they never get squeezed */}
@@ -120,14 +159,14 @@ export default function Navbar() {
                 setShowMobileSearch(!showMobileSearch);
                 setMobileMenuOpen(false);
               }}
-              className="p-2 text-amber-800 hover:text-amber-600 md:hidden rounded-full hover:bg-amber-50 transition-colors focus:outline-none"
+              className="p-2 text-amber-800 hover:text-amber-600 md:hidden rounded-full hover:bg-amber-50/50 transition-colors focus:outline-none"
               aria-label="Toggle Search"
             >
               <Search size={20} />
             </button>
 
             {/* Language Switcher */}
-            <div className="hidden md:flex items-center bg-amber-50 border border-amber-200 rounded-full overflow-hidden p-0.5 shrink-0">
+            <div className="hidden md:flex items-center bg-amber-50/80 border border-amber-200 rounded-full overflow-hidden p-0.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setLanguage('en')}
@@ -151,12 +190,12 @@ export default function Navbar() {
             {/* Cart */}
             <Link
               href="/cart"
-              className="relative p-2 text-amber-800 hover:text-amber-600 transition-all rounded-full hover:bg-amber-50"
+              className="relative p-2 text-amber-800 hover:text-amber-600 transition-all rounded-full hover:bg-amber-50/50"
             >
               <ShoppingCart size={22} />
               {mounted && cartItemsCount > 0 && (
                 <span
-                  className={`absolute -top-1 -right-1 bg-gradient-to-br from-amber-500 to-amber-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-transform duration-200 ${
+                  className={`absolute -top-1 -right-1 bg-gradient-to-br from-amber-600 to-amber-700 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-transform duration-200 ${
                     animateCart ? 'scale-125' : 'scale-100'
                   }`}
                 >
@@ -171,20 +210,20 @@ export default function Navbar() {
                 <>
                   <button
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center space-x-1.5 text-sm font-semibold text-amber-900 hover:text-amber-700 focus:outline-none py-1 px-2 rounded-full hover:bg-amber-50 transition-all"
+                    className="flex items-center space-x-1.5 text-sm font-semibold text-amber-950 hover:text-amber-800 focus:outline-none py-1 px-2 rounded-full hover:bg-amber-50/30 transition-all"
                   >
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-white font-black uppercase text-sm shadow-sm">
                       {(session.user?.name || 'U').charAt(0)}
                     </div>
-                    <span className="hidden sm:inline text-xs font-bold text-amber-900">
+                    <span className="hidden sm:inline text-xs font-bold text-amber-950">
                       {(session.user?.name || 'User').split(' ')[0]}
                     </span>
                   </button>
 
                   {userDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl smooth-shadow-lg border border-amber-100/80 py-2 z-50 animate-fade-in-up">
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl smooth-shadow-lg border border-amber-100/40 py-2 z-50 animate-fade-in-up">
                       <div className="px-4 py-2.5 border-b border-amber-50">
-                        <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider">{t('nav_hello')}</p>
+                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{t('nav_hello')}</p>
                         <p className="text-sm font-black text-amber-950 truncate">{session.user?.name}</p>
                       </div>
                       {session.user.role === 'ADMIN' ? (
@@ -193,17 +232,17 @@ export default function Navbar() {
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center space-x-2 px-4 py-2.5 text-xs font-bold text-amber-900 hover:bg-amber-50 transition-colors"
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
                           <span>{t('nav_admin_panel')}</span>
                         </Link>
                       ) : (
                         <>
                           <Link
-                            href="/account"
+                            href="/account?tab=profile"
                             onClick={() => setUserDropdownOpen(false)}
                             className="flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 transition-colors"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/50" />
                             <span>{t('nav_my_account')}</span>
                           </Link>
                           <Link
@@ -211,7 +250,7 @@ export default function Navbar() {
                             onClick={() => setUserDropdownOpen(false)}
                             className="flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 transition-colors"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/50" />
                             <span>{t('nav_my_orders')}</span>
                           </Link>
                         </>
@@ -222,7 +261,7 @@ export default function Navbar() {
                             setUserDropdownOpen(false);
                             signOut({ callbackUrl: '/' });
                           }}
-                          className="w-full text-left flex items-center space-x-2 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors"
+                          className="w-full text-left flex items-center space-x-2 px-4 py-2.5 text-xs font-bold text-red-650 hover:bg-red-50 transition-colors"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
                           <span>{t('nav_logout')}</span>
@@ -234,7 +273,7 @@ export default function Navbar() {
               ) : (
                 <Link
                   href="/login"
-                  className="flex items-center space-x-1.5 bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:shadow-md transition-all duration-200"
+                  className="flex items-center space-x-1.5 bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow-sm hover:shadow-md transition-all duration-300 hover:scale-102 hover:-translate-y-0.5"
                 >
                   <User size={14} />
                   <span className="hidden sm:inline">{t('nav_login')}</span>
@@ -245,7 +284,7 @@ export default function Navbar() {
             {/* Hamburger */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-amber-800 hover:text-amber-600 lg:hidden focus:outline-none rounded-full hover:bg-amber-50 transition-colors"
+              className="p-2 text-amber-800 hover:text-amber-700 lg:hidden focus:outline-none rounded-full hover:bg-amber-50/30 transition-colors"
               aria-label="Menu"
             >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -256,18 +295,18 @@ export default function Navbar() {
 
       {/* Sliding Mobile Search Panel */}
       {showMobileSearch && (
-        <div className="md:hidden w-full bg-amber-50/70 backdrop-blur-md border-b border-amber-100 py-3 px-4 animate-fade-in-up">
+        <div className="md:hidden w-full bg-amber-50/50 backdrop-blur-md border-b border-amber-100/50 py-3 px-4 animate-fade-in-up">
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <input
               type="text"
               placeholder={t('nav_search_placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white text-amber-900 border border-amber-250 rounded-full py-2.5 pl-4 pr-11 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-inner"
+              className="w-full bg-white text-amber-950 border border-amber-200 rounded-full py-2.5 pl-4 pr-11 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-inner"
             />
             <button
               type="submit"
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-600 hover:text-amber-900 transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-800"
             >
               <Search size={16} />
             </button>
@@ -284,9 +323,9 @@ export default function Navbar() {
               placeholder={t('nav_search_placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-amber-50 text-amber-900 border border-amber-200 rounded-full py-2.5 pl-4 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full bg-amber-50 text-amber-950 border border-amber-200 rounded-full py-2.5 pl-4 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
-            <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-600">
+            <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-800">
               <Search size={18} />
             </button>
           </form>
@@ -296,14 +335,14 @@ export default function Navbar() {
               { href: '/', label: t('nav_home_mobile') },
               { href: '/products?category=cold-pressed', label: t('nav_oils_mobile') },
               { href: '/products?category=refined-filtered', label: t('nav_pooja_mobile') },
-              { href: '/track-order', label: t('nav_track_mobile') },
+              { href: '/account?tab=orders', label: t('nav_track_mobile') },
             ].map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
-                  pathname === href ? 'bg-amber-100 text-amber-900 font-bold' : 'text-amber-800 hover:bg-amber-50'
+                  pathname === href ? 'bg-amber-50 text-amber-900 font-bold' : 'text-amber-950/80 hover:bg-amber-50'
                 }`}
               >
                 {label}
@@ -313,8 +352,8 @@ export default function Navbar() {
 
           {/* Mobile Language switcher */}
           <div className="flex items-center space-x-2 pt-2 border-t border-amber-50">
-            <Globe size={14} className="text-amber-600" />
-            <span className="text-xs font-bold text-amber-700">Language:</span>
+            <Globe size={14} className="text-amber-700" />
+            <span className="text-xs font-bold text-amber-900">Language:</span>
             <div className="flex bg-amber-50 border border-amber-200 rounded-full overflow-hidden">
               <button
                 onClick={() => setLanguage('en')}

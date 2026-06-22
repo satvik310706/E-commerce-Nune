@@ -6,7 +6,7 @@ export const translations = {
     nav_home: 'Home',
     nav_oils: 'Cold Pressed Oils',
     nav_pooja: 'Refined & Filtered Oils',
-    nav_track: 'Track Order',
+    nav_track: 'My Orders',
     nav_whatsapp: 'WhatsApp Support',
     nav_delivery: 'Delivery: Andhra Pradesh & Telangana (AP & TS)',
     nav_search_placeholder: 'Search for pure oils...',
@@ -20,7 +20,7 @@ export const translations = {
     nav_home_mobile: 'Home',
     nav_oils_mobile: 'Cold Pressed Oils',
     nav_pooja_mobile: 'Refined & Filtered',
-    nav_track_mobile: 'Track Order',
+    nav_track_mobile: 'My Orders',
 
     // Hero
     hero_badge: '100% Pure & Traditional Wood Pressed Oils',
@@ -95,7 +95,7 @@ export const translations = {
     footer_link_agarbatti: 'Mustard Oil',
     footer_link_utensils: 'Almond Oil',
     footer_help: 'HELP & POLICIES',
-    footer_track: 'Track Order',
+    footer_track: 'My Orders',
     footer_faq: 'FAQ',
     footer_shipping: 'Shipping Info',
     footer_returns: 'Returns & Refund',
@@ -376,7 +376,7 @@ export const translations = {
     nav_home: 'హోమ్',
     nav_oils: 'చెక్క గానుగ నూనెలు',
     nav_pooja: 'శుద్ధి చేసిన & వడపోసిన నూనెలు',
-    nav_track: 'ట్రాక్ ఆర్డర్',
+    nav_track: 'నా ఆర్డర్లు',
     nav_whatsapp: 'WhatsApp సపోర్ట్',
     nav_delivery: 'డెలివరీ: ఆంధ్రప్రదేశ్ & తెలంగాణ (AP & TS)',
     nav_search_placeholder: 'స్వచ్ఛమైన వంట నూనెల కోసం వెతకండి...',
@@ -390,7 +390,7 @@ export const translations = {
     nav_home_mobile: 'హోమ్',
     nav_oils_mobile: 'చెక్క గానుగ నూనెలు',
     nav_pooja_mobile: 'శుద్ధి చేసినవి',
-    nav_track_mobile: 'ట్రాక్ ఆర్డర్',
+    nav_track_mobile: 'నా ఆర్డర్లు',
 
     // Hero
     hero_badge: '100% సాంప్రదాయ పద్ధతిలో తయారైన స్వచ్ఛమైన చెక్క గానుగ నూనెలు',
@@ -465,7 +465,7 @@ export const translations = {
     footer_link_agarbatti: 'ఆవ నూనె',
     footer_link_utensils: 'బాదం నూనె',
     footer_help: 'సహాయం & పాలసీలు',
-    footer_track: 'ట్రాక్ ఆర్డర్',
+    footer_track: 'నా ఆర్డర్లు',
     footer_faq: 'తరచూ అడిగే ప్రశ్నలు',
     footer_shipping: 'షిప్పింగ్ వివరాలు',
     footer_returns: 'రిటర్న్స్ & రీఫండ్',

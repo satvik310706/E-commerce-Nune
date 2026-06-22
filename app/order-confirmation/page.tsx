@@ -134,7 +134,7 @@ function OrderConfirmationContent() {
               <div className="space-y-1.5 sm:pl-4">
                 <p className="text-gray-400 font-bold">{language === 'te' ? 'చెల్లింపు విధానం:' : 'Payment Method:'}</p>
                 <div className="pl-1">
-                  <span className="inline-block bg-amber-50 text-amber-850 font-black px-3 py-1 rounded-full border border-amber-100">
+                  <span className="inline-block bg-amber-50 text-amber-900 font-black px-3 py-1 rounded-full border border-amber-100">
                     {order.paymentMethod === 'COD'
                       ? (language === 'te' ? 'క్యాష్ ఆన్ డెలివరీ (COD)' : 'Cash on Delivery (COD)')
                       : (language === 'te' ? 'ఆన్‌లైన్ పేమెంట్ (PhonePe)' : 'Online Payment (PhonePe)')}

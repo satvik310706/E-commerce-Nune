@@ -128,7 +128,7 @@ export default function AdminLoginPage() {
           >
             {loading ? (
               <>
-                <RefreshCw size={14} className="animate-spin text-amber-850" />
+                <RefreshCw size={14} className="animate-spin text-amber-900" />
                 <span>{language === 'te' ? 'ధృవీకరించబడుతోంది...' : 'Verifying...'}</span>
               </>
             ) : (

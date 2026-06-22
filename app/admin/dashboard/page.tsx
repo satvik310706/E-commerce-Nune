@@ -346,7 +346,7 @@ export default function AdminDashboardPage() {
                               ? 'bg-green-100 text-green-800 border-green-200'
                               : ord.orderStatus === 'CANCELLED'
                               ? 'bg-red-50 text-red-700 border-red-200'
-                              : 'bg-amber-50 text-amber-850 border-amber-200'
+                              : 'bg-amber-50 text-amber-900 border-amber-200'
                           }`}>
                             {ord.orderStatus === 'DELIVERED'
                               ? (language === 'te' ? 'డెలివరీ అయింది' : 'DELIVERED')

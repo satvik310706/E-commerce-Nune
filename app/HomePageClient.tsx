@@ -11,6 +11,7 @@ import { useGroupedProducts } from '@/hooks/useGroupedProducts';
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?q=80&w=400&auto=format&fit=crop';
 
 // ─── Home page product grid with client-side variant grouping ────────────────
+// Defined before HomePageClient so it's available when JSX is evaluated
 function HomePageProductGrid({ products }: { products: any[] }) {
   const grouped = useGroupedProducts(products);
   return (
@@ -21,8 +22,6 @@ function HomePageProductGrid({ products }: { products: any[] }) {
     </div>
   );
 }
-
-
 
 interface Category {
   id: string;

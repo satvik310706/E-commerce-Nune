@@ -356,7 +356,7 @@ export default function CheckoutPage() {
                       <span>{fetchingLocation ? t('checkout_fetching_location') : t('checkout_live_location')}</span>
                     </button>
                     {locationStatus && (
-                      <p className="text-[10px] font-bold text-center mt-1.5 text-amber-850">
+                      <p className="text-[10px] font-bold text-center mt-1.5 text-amber-900">
                         {locationStatus}
                       </p>
                     )}
@@ -531,7 +531,7 @@ export default function CheckoutPage() {
                       </div>
 
                       {addr.isDefault && (
-                        <span className="inline-block mt-3 text-[9px] bg-amber-100 text-amber-850 font-black px-2 py-0.5 rounded-md self-start uppercase">
+                        <span className="inline-block mt-3 text-[9px] bg-amber-100 text-amber-900 font-black px-2 py-0.5 rounded-md self-start uppercase">
                           {t('checkout_default_badge')}
                         </span>
                       )}

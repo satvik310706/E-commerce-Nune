@@ -61,13 +61,13 @@ export const useCartStore = create<CartState>()(
           }
           set({ items: [...currentItems, item] });
         }
-        // Recalculate coupon if set
+        // Clear coupon when cart changes
         set({ coupon: null });
       },
       removeItem: (productId) => {
         set({
           items: get().items.filter((i) => i.productId !== productId),
-          coupon: null, // Clear coupon when cart changes
+          coupon: null,
         });
       },
       updateQuantity: (productId, quantity) => {

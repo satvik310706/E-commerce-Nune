@@ -61,7 +61,7 @@ export default function Footer() {
           <Link href="/" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_home')}</Link>
           <Link href="/products?category=cold-pressed" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_oils')}</Link>
           <Link href="/products?category=refined-filtered" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_pooja')}</Link>
-          <Link href="/track-order" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_track')}</Link>
+          <Link href="/account?tab=orders" className="hover:text-amber-400 transition-colors relative py-1">{t('nav_track')}</Link>
           <Link href="/policy?tab=shipping" className="hover:text-amber-400 transition-colors relative py-1">{language === 'te' ? 'షిప్పింగ్ పాలసీ' : 'Shipping'}</Link>
           <Link href="/policy?tab=returns" className="hover:text-amber-400 transition-colors relative py-1">{language === 'te' ? 'రిటర్న్స్ & రీఫండ్' : 'Returns & Refund'}</Link>
           <Link href="/policy?tab=privacy" className="hover:text-amber-400 transition-colors relative py-1">{language === 'te' ? 'గోప్యతా విధానం' : 'Privacy'}</Link>

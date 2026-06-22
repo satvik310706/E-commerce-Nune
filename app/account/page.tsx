@@ -12,13 +12,57 @@ import {
   MapPin, 
   Package, 
   LogOut, 
+  ChevronDown, 
+  ChevronUp, 
   Plus, 
   Trash2, 
+  CheckCircle, 
+  ClipboardList, 
   Info,
+  Search, 
+  Copy, 
+  Check, 
+  FileText, 
+  ShoppingBag, 
+  Printer, 
+  X, 
+  AlertTriangle,
+  Clock,
+  Truck
 } from 'lucide-react';
 import PremiumLoader from '@/components/PremiumLoader';
 import CustomSelect from '@/components/CustomSelect';
 import OrderHistorySection from '@/components/OrderHistorySection';
+
+// Deterministic Tracking ID Generator
+const getTrackingId = (orderId: string) => {
+  let hash = 0;
+  for (let i = 0; i < orderId.length; i++) {
+    hash = orderId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let trk = 'TRK-';
+  let tempHash = Math.abs(hash);
+  for (let i = 0; i < 8; i++) {
+    trk += chars[tempHash % chars.length];
+    tempHash = Math.floor(tempHash / chars.length);
+  }
+  return trk;
+};
+
+// Progress percentage mapping
+const getProgressPercentage = (status: string) => {
+  switch (status) {
+    case 'PENDING': return 15;
+    case 'CONFIRMED': return 35;
+    case 'PROCESSING': return 50;
+    case 'PACKED': return 70;
+    case 'OUT_FOR_DELIVERY':
+    case 'SHIPPED': return 85;
+    case 'DELIVERED': return 100;
+    default: return 0;
+  }
+};
 
 interface Toast {
   id: string;
@@ -136,8 +180,21 @@ function AccountContent() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
 
+  // Search query for orders
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Toast notifications state
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Modal / Drawer state
+  const [trackingOrder, setTrackingOrder] = useState<any>(null);
+  const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState<any>(null);
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('Ordered by mistake');
+  const [customReason, setCustomReason] = useState('');
+  const [isCancellingLoading, setIsCancellingLoading] = useState(false);
 
   // Address form states
   const [showForm, setShowForm] = useState(false);
@@ -158,12 +215,29 @@ function AccountContent() {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [locationStatus, setLocationStatus] = useState('');
 
+  // Expandable order items state
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = Math.random().toString();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3500);
+  };
+
+  // Copy tracking ID handler
+  const handleCopyTrackingId = (e: React.MouseEvent, trkId: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(trkId);
+    setCopiedId(trkId);
+    showToast(
+      language === 'te' 
+        ? 'ట్రాకింగ్ ఐడీ క్లిప్‌బోర్డ్‌కు కాపీ చేయబడింది!' 
+        : 'Tracking ID copied to clipboard!',
+      'success'
+    );
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   // Redirect if unauthenticated or admin
@@ -253,11 +327,13 @@ function AccountContent() {
         }));
         
         try {
+          // Attempt reverse geocoding with OpenStreetMap Nominatim
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=en`);
           if (res.ok) {
             const data = await res.json();
             const addr = data.address || {};
             
+            // Auto fill fields if found
             const line1Val = addr.road || addr.suburb || addr.neighbourhood || '';
             const line2Val = addr.suburb || addr.county || addr.state_district || '';
             const cityVal = addr.city || addr.town || addr.village || addr.city_district || '';
@@ -378,6 +454,386 @@ function AccountContent() {
     }
   };
 
+  // Reorder Handler
+  const handleReorder = async (order: any) => {
+    showToast(
+      language === 'te' ? 'ఉత్పత్తులను కార్ట్‌లోకి జోడిస్తున్నాము...' : 'Adding products to cart...', 
+      'info'
+    );
+    try {
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error('Failed to load products');
+      const dbProducts = await res.json();
+      
+      let addedCount = 0;
+      const cartStore = useCartStore.getState();
+      
+      for (const item of order.items) {
+        const p = dbProducts.find((prod: any) => prod.id === item.productId);
+        if (p && p.isActive) {
+          const w = p.weight;
+          const u = p.unit;
+          let label = `${w} ${u}`;
+          if (u === 'Litre' || u === 'Liter') {
+            label = w >= 1 ? `${w} Litre` : `${Math.round(w * 1000)} ml`;
+          } else if (u === 'Gram' || u === 'g') {
+            label = w >= 1000 ? `${w / 1000} Kg` : `${w} g`;
+          } else if (u === 'Kg' || u === 'kg') {
+            label = `${w} Kg`;
+          } else if (u === 'ml') {
+            label = w >= 1000 ? `${w / 1000} L` : `${w} ml`;
+          }
+
+          cartStore.addItem({
+            productId: p.id,
+            name: p.name,
+            nameTe: p.nameTe,
+            price: p.price,
+            mrp: p.mrp,
+            quantity: item.quantity,
+            image: p.images[0] || item.image,
+            weight: p.weight,
+            unit: p.unit,
+            stock: p.stock,
+            variantLabel: label,
+          });
+          addedCount++;
+        }
+      }
+      
+      if (addedCount > 0) {
+        showToast(
+          language === 'te' 
+            ? `${addedCount} వస్తువులు విజయవంతంగా కార్ట్‌కు జోడించబడ్డాయి!` 
+            : `${addedCount} items added to cart successfully!`,
+          'success'
+        );
+        router.push('/cart');
+      } else {
+        showToast(
+          language === 'te' 
+            ? 'క్షమించండి, ఈ ఉత్పత్తులు ప్రస్తుతం అందుబాటులో లేవు.' 
+            : 'Sorry, these products are not available currently.',
+          'error'
+        );
+      }
+    } catch (err) {
+      console.error('Error during reordering:', err);
+      showToast(
+        language === 'te' ? 'రీఆర్డర్ చేయడంలో లోపం జరిగింది.' : 'Error placing reorder.',
+        'error'
+      );
+    }
+  };
+
+  // Printable Invoice Generation
+  const handleDownloadInvoice = (order: any) => {
+    const trkId = getTrackingId(order.orderId);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast(
+        language === 'te' ? 'దయచేసి పాపప్స్ అనుమతించండి.' : 'Please allow popups to download invoice.', 
+        'error'
+      );
+      return;
+    }
+    
+    const itemsHtml = order.items.map((it: any) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: left;">${it.nameTe || it.name}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: center;">${it.quantity}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">₹${it.price.toFixed(2)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">₹${(it.price * it.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const invoiceHtml = `
+      <html>
+        <head>
+          <title>Invoice - ${order.orderId}</title>
+          <style>
+            body { font-family: 'Outfit', 'Inter', sans-serif; color: #1c1009; padding: 40px; margin: 0; background: #fff; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #b45309; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo { font-size: 24px; font-weight: 850; color: #78350f; font-family: 'Outfit'; }
+            .invoice-title { font-size: 28px; font-weight: 900; color: #78350f; text-align: right; }
+            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+            .details-box h3 { margin-top: 0; color: #78350f; border-bottom: 1px solid #fcd34d; padding-bottom: 8px; font-size: 14px; text-transform: uppercase; }
+            .details-box p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            th { background: #fdfbf7; padding: 12px; font-weight: bold; font-size: 12px; text-transform: uppercase; text-align: left; border-bottom: 2px solid #fcd34d; color: #78350f; }
+            .totals { width: 300px; margin-left: auto; margin-top: 20px; font-size: 14px; }
+            .totals-row { display: flex; justify-content: space-between; padding: 8px 0; }
+            .totals-row.grand { font-size: 18px; font-weight: 900; color: #78350f; border-top: 2px solid #b45309; padding-top: 12px; margin-top: 8px; }
+            .footer { text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #fed7aa; padding-top: 20px; margin-top: 50px; }
+            @media print {
+              body { padding: 20px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header" style="align-items: center;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <img src="/images/logo.jpg" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #b45309;" alt="Logo" />
+              <div>
+                <div class="logo">Om Natural</div>
+                <div style="font-size: 12px; color: #b45309; margin-top: 4px;">Chekka Ganuga Nune</div>
+              </div>
+            </div>
+            <div>
+              <div class="invoice-title">INVOICE</div>
+              <div style="font-size: 12px; color: #b45309; margin-top: 4px; text-align: right;">ID: ${order.orderId}</div>
+            </div>
+          </div>
+          
+          <div class="details-grid">
+            <div class="details-box">
+              <h3>Billed To:</h3>
+              <p><strong>${order.name}</strong></p>
+              <p>${order.line1}</p>
+              ${order.line2 ? `<p>${order.line2}</p>` : ''}
+              <p>${order.city}, ${order.state} - ${order.pincode}</p>
+              <p>Phone: ${order.phone}</p>
+            </div>
+            <div class="details-box" style="text-align: right;">
+              <h3>Order Info:</h3>
+              <p><strong>Order ID:</strong> ${order.orderId}</p>
+              <p><strong>Tracking ID:</strong> ${trkId}</p>
+              <p><strong>Date:</strong> ${new Date(order.createdAt).toLocaleDateString()}</p>
+              <p><strong>Payment Status:</strong> ${order.paymentStatus}</p>
+              <p><strong>Payment Method:</strong> ${order.paymentMethod === 'COD' ? 'Cash on Delivery (COD)' : 'PhonePe Online'}</p>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: left;">Product Details</th>
+                <th style="text-align: center; width: 80px;">Qty</th>
+                <th style="text-align: right; width: 120px;">Price</th>
+                <th style="text-align: right; width: 120px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          
+          <div class="totals">
+            <div class="totals-row">
+              <span>Subtotal:</span>
+              <span>₹${order.subtotal.toFixed(2)}</span>
+            </div>
+            <div class="totals-row">
+              <span>Shipping:</span>
+              <span>₹${order.shipping.toFixed(2)}</span>
+            </div>
+            <div class="totals-row">
+              <span>Tax (GST):</span>
+              <span>₹${order.tax.toFixed(2)}</span>
+            </div>
+            ${order.discount > 0 ? `
+              <div class="totals-row" style="color: #16a34a;">
+                <span>Discount:</span>
+                <span>-₹${order.discount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row grand">
+              <span>Grand Total:</span>
+              <span>₹${order.total.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <p>Thank you for purchasing organic wood-pressed oil from Om Natural!</p>
+            <p>This is a computer-generated invoice and does not require a physical signature.</p>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.open();
+    printWindow.document.write(invoiceHtml);
+    printWindow.document.close();
+  };
+
+  // Open cancellation modal
+  const triggerCancelOrder = (e: React.MouseEvent, order: any) => {
+    e.stopPropagation();
+    setCancellingOrder(order);
+    setCancelReason('Ordered by mistake');
+    setCustomReason('');
+    setIsCancelOpen(true);
+  };
+
+  // Submit cancellation
+  const handleCancelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancellingOrder) return;
+    setIsCancellingLoading(true);
+
+    const finalReason = cancelReason === 'Other' 
+      ? customReason.trim() || 'No reason specified' 
+      : cancelReason;
+
+    try {
+      const res = await fetch(`/api/orders/${cancellingOrder.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderStatus: 'CANCELLED',
+          notes: `Cancelled by customer. Reason: ${finalReason}`,
+        }),
+      });
+
+      if (res.ok) {
+        // Update local order list
+        setOrders(prev => prev.map(o => o.id === cancellingOrder.id ? {
+          ...o,
+          orderStatus: 'CANCELLED',
+          notes: `Cancelled by customer. Reason: ${finalReason}`,
+          updatedAt: new Date().toISOString()
+        } : o));
+
+        showToast(
+          language === 'te' 
+            ? 'ఆర్డర్ విజయవంతంగా రద్దు చేయబడింది!' 
+            : 'Order cancelled successfully!',
+          'success'
+        );
+        setIsCancelOpen(false);
+        setCancellingOrder(null);
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Cancellation failed', 'error');
+      }
+    } catch (err) {
+      console.error('Cancellation error:', err);
+      showToast('Connection error. Please try again.', 'error');
+    } finally {
+      setIsCancellingLoading(false);
+    }
+  };
+
+  // Open Track Order Drawer
+  const triggerTrackOrder = (e: React.MouseEvent, order: any) => {
+    e.stopPropagation();
+    setTrackingOrder(order);
+    setIsTrackingOpen(true);
+  };
+
+  // Expand / collapse order card
+  const toggleOrderExpand = (orderId: string) => {
+    setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
+  };
+
+  // Date formatter helpers
+  const getFormattedDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString(language === 'te' ? 'te-IN' : 'en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const getFormattedDateTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString(language === 'te' ? 'te-IN' : 'en-US', {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getEstimatedArrival = (createdAtStr: string) => {
+    const d = new Date(createdAtStr);
+    d.setDate(d.getDate() + 3); // 3 days expected delivery
+    return d.toLocaleDateString(language === 'te' ? 'te-IN' : 'en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'PENDING': return language === 'te' ? 'పెండింగ్' : 'Pending';
+      case 'CONFIRMED': return language === 'te' ? 'నిర్ధారించబడింది' : 'Confirmed';
+      case 'PROCESSING': return language === 'te' ? 'ప్రాసెసింగ్' : 'Processing';
+      case 'PACKED': return language === 'te' ? 'ప్యాక్ చేయబడింది' : 'Packed';
+      case 'OUT_FOR_DELIVERY':
+      case 'SHIPPED': return language === 'te' ? 'డెలివరీలో ఉంది' : 'Out for Delivery';
+      case 'DELIVERED': return language === 'te' ? 'డెలివరీ పూర్తయింది' : 'Delivered';
+      case 'CANCELLED': return language === 'te' ? 'రద్దు చేయబడింది' : 'Cancelled';
+      default: return status;
+    }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'PENDING': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'CONFIRMED': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'PROCESSING': return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'PACKED': return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'OUT_FOR_DELIVERY':
+      case 'SHIPPED': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'DELIVERED': return 'bg-green-50 text-green-700 border-green-200';
+      case 'CANCELLED': return 'bg-red-50 text-red-700 border-red-200';
+      default: return 'bg-amber-50 text-amber-800 border-amber-200';
+    }
+  };
+
+  const getStatusUpdateMsg = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return language === 'te' ? 'ఆర్డర్ విజయవంతంగా నమోదైంది' : 'Your order is placed and awaiting confirmation.';
+      case 'CONFIRMED':
+        return language === 'te' ? 'మీ ఆర్డర్ నిర్ధారించబడింది' : 'Your order has been confirmed by our warehouse.';
+      case 'PROCESSING':
+        return language === 'te' ? 'మీ ఆర్డర్ సిద్ధం చేయబడుతోంది' : 'Your wood-pressed oil is currently being prepared.';
+      case 'PACKED':
+        return language === 'te' ? 'మీ ఆర్డర్ ప్యాక్ చేయబడింది' : 'Your order is securely packed and ready to ship.';
+      case 'OUT_FOR_DELIVERY':
+      case 'SHIPPED':
+        return language === 'te' ? 'డెలివరీ ఏజెంట్ బయలుదేరారు' : 'Our delivery representative is out delivering your package.';
+      case 'DELIVERED':
+        return language === 'te' ? 'సక్సెస్ఫుల్గా డెలివరీ అయింది!' : 'Delivered successfully! Thank you for buying organic.';
+      case 'CANCELLED':
+        return language === 'te' ? 'మీ ఆర్డర్ రద్దు చేయబడింది' : 'This order has been cancelled.';
+      default:
+        return '';
+    }
+  };
+
+  const trackingSteps = [
+    { key: 'PENDING', label: language === 'te' ? 'ఆర్డర్ నమోదు' : 'Order Placed', icon: Clock },
+    { key: 'CONFIRMED', label: language === 'te' ? 'స్థిరపరచబడింది' : 'Confirmed', icon: CheckCircle },
+    { key: 'PROCESSING', label: language === 'te' ? 'ప్రాసెసింగ్' : 'Processing', icon: Info },
+    { key: 'PACKED', label: language === 'te' ? 'ప్యాక్ అయింది' : 'Packed', icon: Package },
+    { key: 'OUT_FOR_DELIVERY', label: language === 'te' ? 'డెలివరీ' : 'Out for Delivery', icon: Truck },
+    { key: 'DELIVERED', label: language === 'te' ? 'డెలివరీ అయింది' : 'Delivered', icon: MapPin }
+  ];
+
+  // Helper to map DB statuses for index tracking
+  const getStepIndex = (status: string) => {
+    if (status === 'SHIPPED') return 4; // Treat SHIPPED equivalent to OUT_FOR_DELIVERY
+    return trackingSteps.findIndex(s => s.key === status);
+  };
+
+  // Filter orders based on search
+  const filteredOrders = orders.filter((ord) => {
+    const trackingId = getTrackingId(ord.orderId);
+    return (
+      ord.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      trackingId.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
   if (authStatus === 'loading') {
     return <PremiumLoader fullScreen={true} text={t('account_loading')} />;
   }
@@ -444,7 +900,7 @@ function AccountContent() {
         {/* Dynamic Detail Card Content */}
         <section className="lg:col-span-3">
           
-          {/* TAB 1: ORDERS – new OrderHistorySection component */}
+          {/* TAB 1: ORDERS – Swiggy-style component */}
           {activeTab === 'orders' && (
             <OrderHistorySection
               orders={orders}
@@ -454,7 +910,6 @@ function AccountContent() {
               onOrdersChange={setOrders}
             />
           )}
-
           {/* TAB 2: ADDRESSES */}
           {activeTab === 'addresses' && (
             <div className="space-y-6">
@@ -616,7 +1071,6 @@ function AccountContent() {
                   </div>
                 </form>
               )}
-              
               {/* Saved Addresses list */}
               {loadingAddresses ? (
                 <div className="bg-white border border-amber-100 rounded-3xl p-12 smooth-shadow">
@@ -765,7 +1219,7 @@ function AccountContent() {
         </section>
       </div>
 
-      {/* Toast system */}
+      {/* ─── CUSTOM TOAST SYSTEM OVERLAY ─── */}
       <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
         {toasts.map(toast => (
           <div
@@ -785,6 +1239,216 @@ function AccountContent() {
           </div>
         ))}
       </div>
+
+      {/* Cancel + Track modals are now self-contained inside OrderHistorySection */}
+      {false && isCancelOpen && cancellingOrder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-amber-950/40 backdrop-blur-xs">
+          <div className="relative bg-white border border-amber-100 max-w-md w-full rounded-3xl p-6 sm:p-8 smooth-shadow-lg space-y-6">
+            
+            {/* Header */}
+            <div className="flex items-center space-x-3 text-red-600">
+              <AlertTriangle size={28} className="shrink-0 animate-bounce" />
+              <h3 className="text-lg font-black font-heading">Cancel Order?</h3>
+            </div>
+
+            {/* Message */}
+            <p className="text-xs text-gray-500 font-bold leading-relaxed">
+              Are you sure you want to cancel this order? This action cannot be undone. 
+              Refunds (if payment was completed online) will be processed back to the original method.
+            </p>
+
+            {/* Reasons capture */}
+            <form onSubmit={handleCancelSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">
+                  Select a reason for cancellation:
+                </label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full bg-[#fdfbf7] border border-amber-100 rounded-xl p-2.5 text-xs font-bold focus:outline-none"
+                >
+                  <option value="Ordered by mistake">Ordered by mistake</option>
+                  <option value="Incorrect delivery address">Incorrect delivery address</option>
+                  <option value="Found a better price elsewhere">Found a better price elsewhere</option>
+                  <option value="Changed mind / No longer needed">Changed mind / No longer needed</option>
+                  <option value="Other">Other (Please describe below)</option>
+                </select>
+              </div>
+
+              {cancelReason === 'Other' && (
+                <div className="space-y-1.5 animate-fade-in-up">
+                  <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">
+                    Custom Reason:
+                  </label>
+                  <textarea
+                    required
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    placeholder="Describe why you want to cancel..."
+                    className="w-full bg-[#fdfbf7] border border-amber-100 rounded-xl p-3 text-xs font-bold min-h-[80px] focus:outline-none"
+                  ></textarea>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCancelOpen(false);
+                    setCancellingOrder(null);
+                  }}
+                  className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 py-2.5 font-bold text-xs rounded-xl"
+                >
+                  Keep Order
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCancellingLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50"
+                >
+                  {isCancellingLoading ? 'Cancelling...' : 'Yes, Cancel Order'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── TRACK ORDER DRAWER/MODAL ─── */}
+      {isTrackingOpen && trackingOrder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center md:justify-end p-4 md:p-0 bg-amber-950/40 backdrop-blur-xs">
+          {/* Backdrop closer */}
+          <div className="absolute inset-0" onClick={() => setIsTrackingOpen(false)}></div>
+
+          {/* Drawer panel */}
+          <div className="relative bg-white border-l border-amber-100 max-w-lg w-full h-full md:h-screen rounded-3xl md:rounded-l-3xl md:rounded-r-none p-6 sm:p-8 smooth-shadow-lg flex flex-col justify-between overflow-y-auto animate-fade-in-up z-10">
+            
+            {/* Drawer Header */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-black font-heading text-amber-950 flex items-center gap-2">
+                  <Truck className="text-amber-800 animate-pulse" size={20} />
+                  <span>{language === 'te' ? 'లైవ్ ఆర్డర్ ట్రాకింగ్' : 'Live Order Tracking'}</span>
+                </h3>
+                <button
+                  onClick={() => setIsTrackingOpen(false)}
+                  className="p-1.5 hover:bg-amber-50 text-gray-400 hover:text-amber-950 rounded-full transition-colors border border-amber-100/50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* General details */}
+              <div className="bg-[#fdfbf7] border border-amber-100 rounded-2xl p-4 space-y-2.5 text-xs text-amber-950 font-bold">
+                <div className="flex justify-between border-b border-amber-50 pb-2">
+                  <span className="text-gray-400 font-bold">{language === 'te' ? 'ట్రాకింగ్ ఐడీ:' : 'Tracking ID:'}</span>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="font-mono text-amber-900 font-black">{getTrackingId(trackingOrder.orderId)}</span>
+                    <button
+                      onClick={(e) => handleCopyTrackingId(e, getTrackingId(trackingOrder.orderId))}
+                      className="p-1 bg-white hover:bg-amber-50 border border-amber-100 rounded-lg text-amber-900 transition-colors"
+                    >
+                      <Copy size={11} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between border-b border-amber-50 pb-2">
+                  <span className="text-gray-400 font-bold">{language === 'te' ? 'ఆర్డర్ ఐడీ:' : 'Order ID:'}</span>
+                  <span className="font-mono">{trackingOrder.orderId}</span>
+                </div>
+
+                <div className="flex justify-between border-b border-amber-50 pb-2">
+                  <span className="text-gray-400 font-bold">{language === 'te' ? 'డెలివరీ అంచనా:' : 'Expected Delivery:'}</span>
+                  <span className="text-amber-900">{trackingOrder.orderStatus === 'CANCELLED' ? 'N/A' : getEstimatedArrival(trackingOrder.createdAt)}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-400 font-bold">{language === 'te' ? 'ప్రస్తుత స్థితి:' : 'Current Status:'}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${getStatusBadgeClass(trackingOrder.orderStatus)}`}>
+                    {getStatusLabel(trackingOrder.orderStatus)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Latest updates & Timeline */}
+            <div className="flex-1 my-6 overflow-y-auto space-y-6">
+              
+              {/* Latest text update */}
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                <Info size={16} className="text-amber-800 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-950 font-bold">
+                  <p className="text-amber-900 font-black">{language === 'te' ? 'తాజా సమాచారం' : 'Latest Update'}</p>
+                  <p className="text-amber-900 font-medium text-[11px] mt-1">
+                    {getStatusUpdateMsg(trackingOrder.orderStatus)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Timeline layout */}
+              {trackingOrder.orderStatus === 'CANCELLED' ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex gap-3 text-red-700 text-xs font-bold animate-fade-in-up">
+                  <AlertTriangle size={18} className="shrink-0" />
+                  <div>
+                    <p className="font-black text-red-800">{language === 'te' ? 'ఈ ఆర్డర్ రద్దు చేయబడింది' : 'This order has been cancelled.'}</p>
+                    <p className="text-[10px] text-red-600 mt-1">{trackingOrder.notes || ''}</p>
+                    <p className="text-[9px] text-gray-400 mt-1">{language === 'te' ? 'రద్దు చేసిన సమయం:' : 'Cancelled at:'} {getFormattedDateTime(trackingOrder.updatedAt)}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative pl-8 border-l-2 border-amber-200 space-y-6 py-2 ml-4">
+                  {trackingSteps.map((step, idx) => {
+                    const currentIdx = getStepIndex(trackingOrder.orderStatus);
+                    const isCompleted = idx <= currentIdx;
+                    const isCurrent = idx === currentIdx;
+                    const IconComp = step.icon;
+
+                    return (
+                      <div key={step.key} className="relative flex items-start space-x-4">
+                        
+                        {/* Timeline Circle */}
+                        <div className={`absolute -left-[42px] top-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                          isCompleted
+                            ? 'bg-amber-600 border-amber-600 text-white'
+                            : 'bg-white border-amber-200 text-gray-300'
+                        } ${isCurrent ? 'ring-4 ring-amber-100 scale-110' : ''}`}>
+                          {isCompleted ? <Check size={11} strokeWidth={3.5} /> : <IconComp size={10} />}
+                        </div>
+
+                        {/* Timeline Label details */}
+                        <div className="space-y-0.5 text-xs">
+                          <p className={`font-black ${isCompleted ? 'text-amber-950' : 'text-gray-400'}`}>
+                            {step.label}
+                          </p>
+                          <p className="text-[10px] text-gray-400 font-semibold">
+                            {isCompleted 
+                              ? getStatusUpdateMsg(step.key) 
+                              : (language === 'te' ? 'త్వరలో...' : 'Pending execution...')}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer close button */}
+            <div className="pt-4 border-t border-amber-100">
+              <button
+                onClick={() => setIsTrackingOpen(false)}
+                className="w-full bg-amber-800 hover:bg-amber-700 text-white font-bold py-3 rounded-2xl text-xs shadow-sm transition-all text-center"
+              >
+                {language === 'te' ? 'మూసివేయి' : 'Close Drawer'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
